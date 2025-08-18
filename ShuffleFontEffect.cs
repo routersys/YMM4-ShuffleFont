@@ -44,21 +44,21 @@ namespace FontShuffle
         [AnimationSlider("F0", "", 1, 99999)]
         public Animation RandomSeed { get; } = new Animation(12345, 1, 99999);
 
-        [Display(Name = "フォントサイズ", Description = "テキストのサイズ")]
+        [Display(Name = "フォントサイズ", Description = "テキストのサイズ（デフォルト）")]
         [AnimationSlider("F0", "px", 10, 200)]
         public Animation FontSize { get; } = new Animation(48, 10, 500);
 
-        [Display(Name = "文字色", Description = "テキストの色")]
+        [Display(Name = "文字色", Description = "テキストの色（デフォルト）")]
         [ColorPicker]
         public System.Windows.Media.Color TextColor { get => textColor; set => Set(ref textColor, value); }
         System.Windows.Media.Color textColor = System.Windows.Media.Colors.White;
 
-        [Display(Name = "太字", Description = "太字にする")]
+        [Display(Name = "太字", Description = "太字にする（デフォルト）")]
         [ToggleSlider]
         public bool Bold { get => bold; set => Set(ref bold, value); }
         bool bold = false;
 
-        [Display(Name = "イタリック", Description = "斜体にする")]
+        [Display(Name = "イタリック", Description = "斜体にする（デフォルト）")]
         [ToggleSlider]
         public bool Italic { get => italic; set => Set(ref italic, value); }
         bool italic = false;
@@ -78,6 +78,9 @@ namespace FontShuffle
 
         public List<string> OrderedFonts { get => orderedFonts; set => Set(ref orderedFonts, value); }
         List<string> orderedFonts = new();
+
+        public Dictionary<string, FontCustomSettings> FontCustomSettings { get => fontCustomSettings; set => Set(ref fontCustomSettings, value); }
+        Dictionary<string, FontCustomSettings> fontCustomSettings = new();
 
         public string IgnoredVersion { get => ignoredVersion; set => Set(ref ignoredVersion, value); }
         string ignoredVersion = "";
@@ -139,8 +142,20 @@ namespace FontShuffle
                 ShuffleModeType.Favorites when FavoriteFonts.Count > 0 => FavoriteFonts,
                 ShuffleModeType.Japanese => systemFonts.JapaneseFonts.Count > 0 ? systemFonts.JapaneseFonts : systemFonts.AllFonts,
                 ShuffleModeType.English => systemFonts.EnglishFonts.Count > 0 ? systemFonts.EnglishFonts : systemFonts.AllFonts,
+                ShuffleModeType.Selected when SelectedFonts.Count == 0 => new List<string>(),
+                ShuffleModeType.Favorites when FavoriteFonts.Count == 0 => new List<string>(),
+                ShuffleModeType.Ordered when OrderedFonts.Count == 0 => new List<string>(),
                 _ => systemFonts.AllFonts
             };
+        }
+
+        public FontCustomSettings? GetFontSettings(string fontName)
+        {
+            if (FontCustomSettings.ContainsKey(fontName) && FontCustomSettings[fontName].UseCustomSettings)
+            {
+                return FontCustomSettings[fontName];
+            }
+            return null;
         }
 
         static (List<string> AllFonts, List<string> JapaneseFonts, List<string> EnglishFonts) LoadSystemFonts()
@@ -257,87 +272,132 @@ namespace FontShuffle
         {
             try
             {
-                textBrush = devices.DeviceContext.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
-                var result = DWrite.DWriteCreateFactory(Vortice.DirectWrite.FactoryType.Shared, out dwriteFactory);
-                if (result.Success)
+                if (devices?.DeviceContext != null)
                 {
-                    isInitialized = true;
+                    textBrush = devices.DeviceContext.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
+                    var result = DWrite.DWriteCreateFactory(Vortice.DirectWrite.FactoryType.Shared, out dwriteFactory);
+                    if (result.Success)
+                    {
+                        isInitialized = true;
+                    }
                 }
             }
-            catch { isInitialized = false; }
+            catch
+            {
+                isInitialized = false;
+            }
         }
 
         public DrawDescription Update(EffectDescription effectDescription)
         {
-            if (!isInitialized) return effectDescription.DrawDescription;
+            if (!isInitialized || devices?.DeviceContext == null)
+                return effectDescription.DrawDescription;
 
-            var frame = effectDescription.ItemPosition.Frame;
-            var length = effectDescription.ItemDuration.Frame;
-            var fps = effectDescription.FPS;
-
-            var width = (int)effect.Width.GetValue(frame, length, fps);
-            var height = (int)effect.Height.GetValue(frame, length, fps);
-            currentSize = new SizeI(width, height);
-
-            var interval = Math.Max(1, (int)effect.Interval.GetValue(frame, length, fps));
-            var currentInterval = frame / interval;
-
-            if (lastFrame != currentInterval)
+            try
             {
-                currentFont = effect.GetFontForFrame(frame);
-                lastFrame = currentInterval;
+                var frame = effectDescription.ItemPosition.Frame;
+                var length = effectDescription.ItemDuration.Frame;
+                var fps = effectDescription.FPS;
+
+                var width = (int)effect.Width.GetValue(frame, length, fps);
+                var height = (int)effect.Height.GetValue(frame, length, fps);
+                currentSize = new SizeI(width, height);
+
+                var interval = Math.Max(1, (int)effect.Interval.GetValue(frame, length, fps));
+                var currentInterval = frame / interval;
+
+                if (lastFrame != currentInterval)
+                {
+                    currentFont = effect.GetFontForFrame(frame);
+                    lastFrame = currentInterval;
+                }
+
+                var fonts = effect.GetActiveFontList();
+                if (fonts.Count == 0)
+                {
+                    commandList?.Dispose();
+                    commandList = devices.DeviceContext.CreateCommandList();
+                    var dc = devices.DeviceContext;
+                    var prevTarget = dc.Target;
+                    dc.Target = commandList;
+                    dc.BeginDraw();
+                    dc.Clear(new Color4(0, 0, 0, 0));
+                    dc.EndDraw();
+                    commandList.Close();
+                    if (prevTarget != null)
+                        dc.Target = prevTarget;
+                    return effectDescription.DrawDescription;
+                }
+
+                var customSettings = effect.GetFontSettings(currentFont ?? "");
+
+                float fontSize;
+                if (customSettings?.UseDynamicSize == true)
+                {
+                    fontSize = (float)effect.FontSize.GetValue(frame, length, fps);
+                }
+                else
+                {
+                    fontSize = (float)(customSettings?.FontSize ?? effect.FontSize.GetValue(frame, length, fps));
+                }
+
+                var mediaColor = customSettings?.TextColor ?? effect.TextColor;
+                var color = new Color4(mediaColor.R / 255f, mediaColor.G / 255f, mediaColor.B / 255f, mediaColor.A / 255f);
+                var bold = customSettings?.Bold ?? effect.Bold;
+                var italic = customSettings?.Italic ?? effect.Italic;
+
+                bool needsUpdate = currentFont != lastUsedFont || Math.Abs(fontSize - lastFontSize) > 0.1f ||
+                                   !ColorsEqual(color, lastColor) || effect.DisplayText != lastText ||
+                                   bold != lastBold || italic != lastItalic;
+
+                if (needsUpdate)
+                {
+                    if (currentFont != lastUsedFont || Math.Abs(fontSize - lastFontSize) > 0.1f ||
+                        bold != lastBold || italic != lastItalic)
+                    {
+                        UpdateTextFormat(currentFont ?? "Yu Gothic UI", fontSize, bold, italic);
+                    }
+                    if (!ColorsEqual(color, lastColor))
+                    {
+                        UpdateTextBrush(color);
+                    }
+                    lastUsedFont = currentFont ?? "Yu Gothic UI";
+                    lastFontSize = fontSize;
+                    lastColor = color;
+                    lastText = effect.DisplayText;
+                    lastBold = bold;
+                    lastItalic = italic;
+                }
+
+                RenderText();
             }
-
-            var fontSize = (float)effect.FontSize.GetValue(frame, length, fps);
-            var mediaColor = effect.TextColor;
-            var color = new Color4(mediaColor.R / 255f, mediaColor.G / 255f, mediaColor.B / 255f, mediaColor.A / 255f);
-
-            bool needsUpdate = currentFont != lastUsedFont || fontSize != lastFontSize || !ColorsEqual(color, lastColor) ||
-                               effect.DisplayText != lastText || effect.Bold != lastBold || effect.Italic != lastItalic;
-
-            if (needsUpdate)
+            catch
             {
-                if (currentFont != lastUsedFont || fontSize != lastFontSize || effect.Bold != lastBold || effect.Italic != lastItalic)
-                {
-                    UpdateTextFormat(currentFont ?? "Yu Gothic UI", fontSize);
-                }
-                if (!ColorsEqual(color, lastColor))
-                {
-                    UpdateTextBrush(color);
-                }
-                lastUsedFont = currentFont ?? "Yu Gothic UI";
-                lastFontSize = fontSize;
-                lastColor = color;
-                lastText = effect.DisplayText;
-                lastBold = effect.Bold;
-                lastItalic = effect.Italic;
             }
-
-            RenderText();
 
             return effectDescription.DrawDescription;
         }
 
-        void UpdateTextFormat(string fontName, float fontSize)
+        void UpdateTextFormat(string fontName, float fontSize, bool bold, bool italic)
         {
             try
             {
                 currentTextFormat?.Dispose();
                 currentTextFormat = null;
-                if (dwriteFactory != null)
+                if (dwriteFactory != null && devices?.DeviceContext != null)
                 {
                     try
                     {
                         currentTextFormat = dwriteFactory.CreateTextFormat(fontName, null,
-                            effect.Bold ? FontWeight.Bold : FontWeight.Normal,
-                            effect.Italic ? FontStyle.Italic : FontStyle.Normal,
+                            bold ? FontWeight.Bold : FontWeight.Normal,
+                            italic ? FontStyle.Italic : FontStyle.Normal,
                             FontStretch.Normal, fontSize);
                     }
                     catch
                     {
                         currentTextFormat = dwriteFactory.CreateTextFormat("Arial", null,
-                            effect.Bold ? FontWeight.Bold : FontWeight.Normal,
-                            effect.Italic ? FontStyle.Italic : FontStyle.Normal,
+                            bold ? FontWeight.Bold : FontWeight.Normal,
+                            italic ? FontStyle.Italic : FontStyle.Normal,
                             FontStretch.Normal, fontSize);
                     }
                     if (currentTextFormat != null)
@@ -347,52 +407,82 @@ namespace FontShuffle
                     }
                 }
             }
-            catch { currentTextFormat = null; }
+            catch
+            {
+                currentTextFormat = null;
+            }
         }
 
         void UpdateTextBrush(Color4 color)
         {
             try
             {
-                if (textBrush != null) textBrush.Color = color;
+                if (textBrush != null && devices?.DeviceContext != null)
+                    textBrush.Color = color;
             }
             catch
             {
-                textBrush?.Dispose();
-                textBrush = devices.DeviceContext.CreateSolidColorBrush(color);
+                try
+                {
+                    textBrush?.Dispose();
+                    if (devices?.DeviceContext != null)
+                        textBrush = devices.DeviceContext.CreateSolidColorBrush(color);
+                }
+                catch
+                {
+                    textBrush = null;
+                }
             }
         }
 
         void RenderText()
         {
-            commandList?.Dispose();
-            commandList = devices.DeviceContext.CreateCommandList();
-
-            var dc = devices.DeviceContext;
-            var prevTarget = dc.Target;
             try
             {
-                dc.Target = commandList;
-                dc.BeginDraw();
-                dc.Clear(new Color4(0, 0, 0, 0));
+                commandList?.Dispose();
+                if (devices?.DeviceContext != null)
+                    commandList = devices.DeviceContext.CreateCommandList();
 
-                if (!string.IsNullOrEmpty(effect.DisplayText) && dwriteFactory != null && currentTextFormat != null && textBrush != null)
+                var dc = devices?.DeviceContext;
+                var prevTarget = dc?.Target;
+
+                if (dc != null && commandList != null)
                 {
-                    using var textLayout = dwriteFactory.CreateTextLayout(
-                        effect.DisplayText,
-                        currentTextFormat,
-                        currentSize.Width,
-                        currentSize.Height
-                    );
+                    try
+                    {
+                        dc.Target = commandList;
+                        dc.BeginDraw();
+                        dc.Clear(new Color4(0, 0, 0, 0));
 
-                    var origin = new Vector2(-currentSize.Width / 2f, -currentSize.Height / 2f);
-                    dc.DrawTextLayout(origin, textLayout, textBrush);
+                        if (!string.IsNullOrEmpty(effect.DisplayText) && dwriteFactory != null &&
+                            currentTextFormat != null && textBrush != null)
+                        {
+                            using var textLayout = dwriteFactory.CreateTextLayout(
+                                effect.DisplayText,
+                                currentTextFormat,
+                                currentSize.Width,
+                                currentSize.Height
+                            );
+
+                            var origin = new Vector2(-currentSize.Width / 2f, -currentSize.Height / 2f);
+                            dc.DrawTextLayout(origin, textLayout, textBrush);
+                        }
+                        dc.EndDraw();
+                        commandList.Close();
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        if (dc != null && prevTarget != null)
+                            dc.Target = prevTarget;
+                    }
                 }
-                dc.EndDraw();
-                commandList.Close();
             }
-            catch { }
-            finally { dc.Target = prevTarget; }
+            catch
+            {
+            }
         }
 
         static bool ColorsEqual(Color4 a, Color4 b)
@@ -406,7 +496,10 @@ namespace FontShuffle
             inputImage = input;
         }
 
-        public void ClearInput() { inputImage = null; }
+        public void ClearInput()
+        {
+            inputImage = null;
+        }
 
         public void Dispose()
         {
@@ -417,7 +510,9 @@ namespace FontShuffle
                 commandList?.Dispose();
                 dwriteFactory?.Dispose();
             }
-            catch { }
+            catch
+            {
+            }
             currentTextFormat = null;
             textBrush = null;
             commandList = null;

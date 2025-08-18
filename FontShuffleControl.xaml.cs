@@ -32,6 +32,7 @@ namespace FontShuffle
         public bool IsSearchEmpty => string.IsNullOrEmpty(SearchText);
 
         public ObservableCollection<string> OrderedFontNames { get; set; } = new();
+        public ObservableCollection<FontGroup> FontGroups { get; set; } = new();
 
         bool isUpdatingUI = false;
         ObservableCollection<FontItem> allFonts = new();
@@ -66,6 +67,60 @@ namespace FontShuffle
             InitializeComponent();
             filteredFontsView = CollectionViewSource.GetDefaultView(allFonts);
             FontListView.ItemsSource = filteredFontsView;
+            FontGroupComboBox.ItemsSource = FontGroups;
+            SetupContextMenu();
+            InitializeFontGroups();
+        }
+
+        private void InitializeFontGroups()
+        {
+            FontGroups.Add(new FontGroup { Name = "すべて", Type = FontGroupType.All });
+            FontGroups.Add(new FontGroup { Name = "日本語フォント", Type = FontGroupType.Japanese });
+            FontGroups.Add(new FontGroup { Name = "英数字フォント", Type = FontGroupType.English });
+            FontGroupComboBox.SelectedIndex = 0;
+        }
+
+        private void SetupContextMenu()
+        {
+            var contextMenu = new ContextMenu();
+            var settingsMenuItem = new MenuItem { Header = "フォント設定" };
+            settingsMenuItem.Click += FontContextMenu_Settings_Click;
+            contextMenu.Items.Add(settingsMenuItem);
+
+            FontListView.ContextMenu = contextMenu;
+        }
+
+        private void FontContextMenu_Settings_Click(object sender, RoutedEventArgs e)
+        {
+            if (FontListView.SelectedItem is FontItem selectedFont)
+            {
+                var settingsWindow = new FontSettingsWindow();
+                settingsWindow.Owner = Window.GetWindow(this);
+                settingsWindow.SetSingleFont(selectedFont.Name, Effect?.FontCustomSettings ?? new Dictionary<string, FontCustomSettings>());
+
+                if (settingsWindow.ShowDialog() == true)
+                {
+                    if (Effect != null)
+                    {
+                        BeginEdit?.Invoke(this, EventArgs.Empty);
+                        var updatedSettings = settingsWindow.GetUpdatedSettings();
+
+                        if (updatedSettings.ContainsKey(selectedFont.Name))
+                        {
+                            Effect.FontCustomSettings[selectedFont.Name] = updatedSettings[selectedFont.Name];
+                        }
+                        else if (Effect.FontCustomSettings.ContainsKey(selectedFont.Name))
+                        {
+                            Effect.FontCustomSettings.Remove(selectedFont.Name);
+                        }
+
+                        EndEdit?.Invoke(this, EventArgs.Empty);
+
+                        selectedFont.OnPropertyChanged(nameof(FontItem.Name));
+                        ApplyFilter();
+                    }
+                }
+            }
         }
 
         void UserControl_Loaded(object sender, RoutedEventArgs e)
@@ -85,7 +140,7 @@ namespace FontShuffle
 
             try
             {
-                CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.1";
+                CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.2";
                 string url = "https://api.github.com/repos/routersys/YMM4-ShuffleFont/releases/latest";
 
                 using var client = new HttpClient();
@@ -162,6 +217,119 @@ namespace FontShuffle
             }
         }
 
+        private void FontSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsWindow = new FontSettingsWindow();
+            settingsWindow.Owner = Window.GetWindow(this);
+            settingsWindow.SetFonts(allFonts.Where(f => f.IsSelected), Effect?.FontCustomSettings ?? new Dictionary<string, FontCustomSettings>());
+
+            if (settingsWindow.ShowDialog() == true)
+            {
+                if (Effect != null)
+                {
+                    BeginEdit?.Invoke(this, EventArgs.Empty);
+                    Effect.FontCustomSettings = settingsWindow.GetUpdatedSettings();
+                    EndEdit?.Invoke(this, EventArgs.Empty);
+
+                    foreach (var font in allFonts)
+                    {
+                        font.OnPropertyChanged(nameof(FontItem.Name));
+                    }
+                    ApplyFilter();
+                }
+            }
+        }
+
+        private void FontGroupComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FontGroupComboBox.SelectedItem is FontGroup selectedGroup)
+            {
+                ApplyGroupFilter(selectedGroup);
+            }
+        }
+
+        private void ApplyGroupFilter(FontGroup group)
+        {
+            isUpdatingUI = true;
+            BeginEdit?.Invoke(this, EventArgs.Empty);
+
+            foreach (var font in allFonts)
+            {
+                bool shouldSelect = group.Type switch
+                {
+                    FontGroupType.All => false,
+                    FontGroupType.Japanese => font.IsJapanese,
+                    FontGroupType.English => !font.IsJapanese,
+                    FontGroupType.Custom => group.FontNames.Contains(font.Name),
+                    _ => false
+                };
+
+                if (shouldSelect && !font.IsSelected)
+                {
+                    font.IsSelected = true;
+                    if (!OrderedFontNames.Contains(font.Name))
+                        OrderedFontNames.Add(font.Name);
+                }
+            }
+
+            isUpdatingUI = false;
+            EndEdit?.Invoke(this, EventArgs.Empty);
+            UpdateEffectLists();
+        }
+
+        private void CreateGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedFonts = allFonts.Where(f => f.IsSelected).Select(f => f.Name).ToList();
+            if (selectedFonts.Count == 0)
+            {
+                MessageBox.Show("グループを作成するにはフォントを選択してください。", "グループ作成", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var inputDialog = new InputDialog();
+            inputDialog.Owner = Window.GetWindow(this);
+            inputDialog.Title = "グループ作成";
+            inputDialog.Message = "グループ名を入力してください:";
+            inputDialog.Value = "新しいグループ";
+
+            if (inputDialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(inputDialog.Value))
+            {
+                var newGroup = new FontGroup
+                {
+                    Name = inputDialog.Value,
+                    Type = FontGroupType.Custom,
+                    FontNames = new List<string>(selectedFonts)
+                };
+                FontGroups.Add(newGroup);
+                FontGroupComboBox.SelectedItem = newGroup;
+            }
+        }
+
+        private void ManageGroupsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var groupManager = new FontGroupManagerWindow();
+            groupManager.Owner = Window.GetWindow(this);
+            groupManager.SetGroups(FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList());
+
+            if (groupManager.ShowDialog() == true)
+            {
+                var customGroups = FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList();
+                foreach (var group in customGroups)
+                {
+                    FontGroups.Remove(group);
+                }
+
+                foreach (var group in groupManager.GetUpdatedGroups())
+                {
+                    FontGroups.Add(group);
+                }
+            }
+        }
+
+        private void ShowOrderNumbersCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+        }
+
         private class GitHubRelease
         {
             [JsonPropertyName("tag_name")]
@@ -185,7 +353,7 @@ namespace FontShuffle
                     string fontName = GetFontFamilyName(fontFamily);
                     if (!string.IsNullOrEmpty(fontName) && fontSet.Add(fontName))
                     {
-                        fonts.Add(new FontItem { Name = fontName, IsJapanese = IsJapaneseFont(fontName) });
+                        fonts.Add(new FontItem(this) { Name = fontName, IsJapanese = IsJapaneseFont(fontName) });
                     }
                 }
 
@@ -293,14 +461,20 @@ namespace FontShuffle
             {
                 foreach (var name in Effect.OrderedFonts)
                 {
-                    OrderedFontNames.Add(name);
+                    if (selectedSet.Contains(name))
+                    {
+                        OrderedFontNames.Add(name);
+                    }
                 }
             }
             else
             {
-                foreach (var name in Effect.SelectedFonts.OrderBy(x => OrderedFontNames.IndexOf(x)))
+                foreach (var name in Effect.SelectedFonts)
                 {
-                    OrderedFontNames.Add(name);
+                    if (!OrderedFontNames.Contains(name))
+                    {
+                        OrderedFontNames.Add(name);
+                    }
                 }
             }
 
@@ -344,36 +518,9 @@ namespace FontShuffle
                 font.IsSelected = false;
                 OrderedFontNames.Remove(font.Name);
             }
-            isUpdatingUI = false;
-            EndEdit?.Invoke(this, EventArgs.Empty);
-            UpdateEffectLists();
-        }
 
-        void SelectJapaneseButton_Click(object sender, RoutedEventArgs e)
-        {
-            isUpdatingUI = true;
-            BeginEdit?.Invoke(this, EventArgs.Empty);
-            foreach (FontItem font in filteredFontsView)
-            {
-                font.IsSelected = font.IsJapanese;
-                if (font.IsJapanese && !OrderedFontNames.Contains(font.Name)) OrderedFontNames.Add(font.Name);
-                else if (!font.IsJapanese) OrderedFontNames.Remove(font.Name);
-            }
-            isUpdatingUI = false;
-            EndEdit?.Invoke(this, EventArgs.Empty);
-            UpdateEffectLists();
-        }
+            FontGroupComboBox.SelectedIndex = 0;
 
-        void SelectEnglishButton_Click(object sender, RoutedEventArgs e)
-        {
-            isUpdatingUI = true;
-            BeginEdit?.Invoke(this, EventArgs.Empty);
-            foreach (FontItem font in filteredFontsView)
-            {
-                font.IsSelected = !font.IsJapanese;
-                if (!font.IsJapanese && !OrderedFontNames.Contains(font.Name)) OrderedFontNames.Add(font.Name);
-                else if (font.IsJapanese) OrderedFontNames.Remove(font.Name);
-            }
             isUpdatingUI = false;
             EndEdit?.Invoke(this, EventArgs.Empty);
             UpdateEffectLists();
@@ -454,8 +601,16 @@ namespace FontShuffle
 
                     if (removeIndex >= 0 && targetIndex >= 0 && removeIndex != targetIndex)
                     {
+                        BeginEdit?.Invoke(this, EventArgs.Empty);
                         OrderedFontNames.Move(removeIndex, targetIndex);
+
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            OrderListBox.Items.Refresh();
+                        }), System.Windows.Threading.DispatcherPriority.Render);
+
                         UpdateEffectLists();
+                        EndEdit?.Invoke(this, EventArgs.Empty);
                     }
                 }
             }
@@ -482,6 +637,140 @@ namespace FontShuffle
             }
             while (current != null);
             return null;
+        }
+    }
+
+    public class InputDialog : Window
+    {
+        public string Value { get; set; } = "";
+        public string Message { get; set; } = "";
+
+        private TextBox textBox;
+
+        public InputDialog()
+        {
+            Width = 400;
+            Height = 200;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ResizeMode = ResizeMode.NoResize;
+
+            var grid = new Grid();
+            grid.Margin = new Thickness(12);
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var messageLabel = new TextBlock();
+            messageLabel.SetBinding(TextBlock.TextProperty, new Binding("Message") { Source = this });
+            messageLabel.Margin = new Thickness(0, 0, 0, 12);
+            Grid.SetRow(messageLabel, 0);
+            grid.Children.Add(messageLabel);
+
+            textBox = new TextBox();
+            textBox.SetBinding(TextBox.TextProperty, new Binding("Value") { Source = this });
+            textBox.Margin = new Thickness(0, 0, 0, 12);
+            Grid.SetRow(textBox, 1);
+            grid.Children.Add(textBox);
+
+            var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var okButton = new Button { Content = "OK", Width = 70, Height = 24, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancelButton = new Button { Content = "キャンセル", Width = 70, Height = 24, IsCancel = true };
+
+            okButton.Click += (s, e) => { Value = textBox.Text; DialogResult = true; Close(); };
+            cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+
+            Grid.SetRow(buttonPanel, 3);
+            grid.Children.Add(buttonPanel);
+
+            Content = grid;
+
+            Loaded += (s, e) => textBox.Focus();
+        }
+    }
+
+    public class FontGroup : INotifyPropertyChanged
+    {
+        public string Name { get; set; } = "";
+        public FontGroupType Type { get; set; }
+        public List<string> FontNames { get; set; } = new();
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected virtual void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    public enum FontGroupType
+    {
+        All,
+        Japanese,
+        English,
+        Custom
+    }
+
+    public class FontGroupManagerWindow : Window
+    {
+        private ObservableCollection<FontGroup> groups = new();
+        private ListBox groupListBox;
+
+        public FontGroupManagerWindow()
+        {
+            Title = "グループ管理";
+            Width = 400;
+            Height = 300;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            var grid = new Grid();
+            grid.Margin = new Thickness(12);
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            groupListBox = new ListBox { ItemsSource = groups };
+            groupListBox.DisplayMemberPath = "Name";
+            Grid.SetRow(groupListBox, 0);
+            grid.Children.Add(groupListBox);
+
+            var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var deleteButton = new Button { Content = "削除", Width = 70, Height = 24, Margin = new Thickness(0, 0, 8, 0) };
+            var okButton = new Button { Content = "OK", Width = 70, Height = 24, Margin = new Thickness(0, 0, 8, 0) };
+            var cancelButton = new Button { Content = "キャンセル", Width = 70, Height = 24 };
+
+            deleteButton.Click += (s, e) => {
+                if (groupListBox.SelectedItem is FontGroup selected)
+                {
+                    groups.Remove(selected);
+                }
+            };
+            okButton.Click += (s, e) => { DialogResult = true; Close(); };
+            cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
+
+            buttonPanel.Children.Add(deleteButton);
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+
+            Grid.SetRow(buttonPanel, 1);
+            grid.Children.Add(buttonPanel);
+
+            Content = grid;
+        }
+
+        public void SetGroups(List<FontGroup> fontGroups)
+        {
+            groups.Clear();
+            foreach (var group in fontGroups)
+            {
+                groups.Add(group);
+            }
+        }
+
+        public List<FontGroup> GetUpdatedGroups()
+        {
+            return groups.ToList();
         }
     }
 
@@ -513,6 +802,13 @@ namespace FontShuffle
 
     public class FontItem : INotifyPropertyChanged
     {
+        private readonly FontShuffleControl? _control;
+
+        public FontItem(FontShuffleControl? control = null)
+        {
+            _control = control;
+        }
+
         public string Name { get; set; } = "";
         public bool IsJapanese { get; set; }
 
@@ -530,10 +826,24 @@ namespace FontShuffle
             set { if (isFavorite != value) { isFavorite = value; OnPropertyChanged(nameof(IsFavorite)); } }
         }
 
+        public bool HasCustomSettings
+        {
+            get
+            {
+                if (_control?.Effect?.FontCustomSettings == null) return false;
+                return _control.Effect.FontCustomSettings.ContainsKey(Name) &&
+                       _control.Effect.FontCustomSettings[Name].UseCustomSettings;
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected virtual void OnPropertyChanged(string propertyName)
+        public virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            if (propertyName == nameof(Name))
+            {
+                OnPropertyChanged(nameof(HasCustomSettings));
+            }
         }
     }
 
@@ -542,6 +852,78 @@ namespace FontShuffle
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             return (value is bool v && v) ? (SolidColorBrush)new BrushConverter().ConvertFrom("#FFD700")! : (SolidColorBrush)new BrushConverter().ConvertFrom("#FF808080")!;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class HasCustomSettingsConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is FontItem font)
+            {
+                return font.HasCustomSettings ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (value is string fontName)
+            {
+                return Visibility.Collapsed;
+            }
+            return Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class ColorToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is System.Windows.Media.Color color)
+            {
+                return new SolidColorBrush(color);
+            }
+            return new SolidColorBrush(Colors.White);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is SolidColorBrush brush)
+            {
+                return brush.Color;
+            }
+            return Colors.White;
+        }
+    }
+
+    public class OrderNumberConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is ListBoxItem item)
+            {
+                var listBox = ItemsControl.ItemsControlFromItemContainer(item) as ListBox;
+                if (listBox != null)
+                {
+                    int index = -1;
+                    for (int i = 0; i < listBox.Items.Count; i++)
+                    {
+                        if (listBox.Items[i] == item.DataContext)
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+                    return index >= 0 ? $"{index + 1}." : "";
+                }
+            }
+            return "";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

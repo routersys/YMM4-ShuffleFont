@@ -44,8 +44,122 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinHeight" Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton" 
+                                          Background="{TemplateBinding Background}" 
+                                          BorderBrush="{TemplateBinding BorderBrush}" 
+                                          BorderThickness="{TemplateBinding BorderThickness}" 
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" 
+                                          ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Border" 
+                                                Background="{TemplateBinding Background}" 
+                                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                                CornerRadius="2">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Path Grid.Column="1" 
+                                                      x:Name="Arrow" 
+                                                      Data="M 0 0 L 4 4 L 8 0 Z" 
+                                                      Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
+                                                      HorizontalAlignment="Center" 
+                                                      VerticalAlignment="Center" 
+                                                      Margin="4"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite" 
+                                              IsHitTestVisible="False" 
+                                              Content="{TemplateBinding SelectionBoxItem}" 
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" 
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" 
+                                              Margin="{TemplateBinding Padding}" 
+                                              VerticalAlignment="Center" 
+                                              HorizontalAlignment="Left"/>
+                            <Popup x:Name="Popup" 
+                                   Placement="Bottom" 
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" 
+                                   AllowsTransparency="True" 
+                                   Focusable="False" 
+                                   PopupAnimation="Slide">
+                                <Grid MinWidth="{TemplateBinding ActualWidth}" MaxHeight="200">
+                                    <Border Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
+                                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                            BorderThickness="1" 
+                                            CornerRadius="2">
+                                        <ScrollViewer>
+                                            <StackPanel IsItemsHost="True"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                        <Setter Property="Padding" Value="8,4"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <local:HasCustomSettingsConverter x:Key="HasCustomSettingsConverter"/>
+        <local:OrderNumberConverter x:Key="OrderNumberConverter"/>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
 
     <Border Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
@@ -141,6 +255,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0" 
@@ -182,29 +297,50 @@
                                       VerticalAlignment="Center" 
                                       Checked="FilterCheckBox_Changed" 
                                       Unchecked="FilterCheckBox_Changed"/>
+
+                            <Button Grid.Column="3" 
+                                    x:Name="FontSettingsButton" 
+                                    Content="⚙" 
+                                    Style="{StaticResource SettingsButtonStyle}"
+                                    ToolTip="フォント設定"
+                                    Click="FontSettingsButton_Click"/>
                         </Grid>
 
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8" Grid.ColumnSpan="2">
-                            <Button x:Name="SelectAllButton" 
-                                    Content="全選択" 
-                                    Click="SelectAllButton_Click" 
-                                    Style="{StaticResource ModernButtonStyle}" 
-                                    Margin="0,0,4,0"/>
-                            <Button x:Name="DeselectAllButton" 
-                                    Content="全解除" 
-                                    Click="DeselectAllButton_Click" 
-                                    Style="{StaticResource ModernButtonStyle}" 
-                                    Margin="0,0,4,0"/>
-                            <Button x:Name="SelectJapaneseButton" 
-                                    Content="日本語フォント" 
-                                    Click="SelectJapaneseButton_Click" 
-                                    Style="{StaticResource ModernButtonStyle}" 
-                                    Margin="0,0,4,0"/>
-                            <Button x:Name="SelectEnglishButton" 
-                                    Content="英数字フォント" 
-                                    Click="SelectEnglishButton_Click" 
-                                    Style="{StaticResource ModernButtonStyle}"/>
-                        </StackPanel>
+                        <Grid Grid.Row="1" Margin="0,0,0,8" Grid.ColumnSpan="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ComboBox Grid.Row="0" 
+                                      x:Name="FontGroupComboBox" 
+                                      Style="{StaticResource ModernComboBoxStyle}"
+                                      Margin="0,0,0,4"
+                                      SelectionChanged="FontGroupComboBox_SelectionChanged"
+                                      DisplayMemberPath="Name"/>
+
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal">
+                                <Button x:Name="SelectAllButton" 
+                                        Content="全選択" 
+                                        Click="SelectAllButton_Click" 
+                                        Style="{StaticResource ModernButtonStyle}" 
+                                        Margin="0,0,4,0"/>
+                                <Button x:Name="DeselectAllButton" 
+                                        Content="全解除" 
+                                        Click="DeselectAllButton_Click" 
+                                        Style="{StaticResource ModernButtonStyle}" 
+                                        Margin="0,0,4,0"/>
+                                <Button x:Name="CreateGroupButton" 
+                                        Content="グループ作成" 
+                                        Click="CreateGroupButton_Click" 
+                                        Style="{StaticResource ModernButtonStyle}" 
+                                        Margin="0,0,4,0"/>
+                                <Button x:Name="ManageGroupsButton" 
+                                        Content="グループ管理" 
+                                        Click="ManageGroupsButton_Click" 
+                                        Style="{StaticResource ModernButtonStyle}"/>
+                            </WrapPanel>
+                        </Grid>
 
                         <Border Grid.Row="2" 
                                 Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
@@ -225,6 +361,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
                                                 <CheckBox Grid.Column="0" 
@@ -269,6 +406,15 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
+
+                                                <TextBlock Grid.Column="3" 
+                                                           Text="●" 
+                                                           FontSize="10" 
+                                                           Foreground="#FF4CAF50" 
+                                                           VerticalAlignment="Center" 
+                                                           Margin="4,0,0,0"
+                                                           ToolTip="カスタム設定あり"
+                                                           Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -305,6 +451,7 @@
                     <Grid Margin="0,8,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
@@ -313,7 +460,29 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,8"/>
 
-                        <Border Grid.Row="1"
+                        <Grid Grid.Row="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0" 
+                                      x:Name="ShowOrderNumbersCheckBox" 
+                                      Content="順番番号を表示" 
+                                      Style="{StaticResource ModernCheckBoxStyle}"
+                                      Checked="ShowOrderNumbersCheckBox_Changed" 
+                                      Unchecked="ShowOrderNumbersCheckBox_Changed"
+                                      IsChecked="True"/>
+
+                            <Button Grid.Column="1" 
+                                    x:Name="OrderSettingsButton" 
+                                    Content="⚙" 
+                                    Style="{StaticResource SettingsButtonStyle}"
+                                    ToolTip="フォント設定"
+                                    Click="FontSettingsButton_Click"/>
+                        </Grid>
+
+                        <Border Grid.Row="2"
                                 Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
                                 BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
                                 BorderThickness="1" 
@@ -329,7 +498,36 @@
                                      BorderThickness="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding}" Margin="4" FontFamily="{Binding}" FontSize="12"/>
+                                        <Grid Margin="4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" 
+                                                       Text="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource OrderNumberConverter}}" 
+                                                       FontSize="10" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                                       VerticalAlignment="Center" 
+                                                       Margin="0,0,8,0"
+                                                       Visibility="{Binding IsChecked, ElementName=ShowOrderNumbersCheckBox, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                            <TextBlock Grid.Column="1" 
+                                                       Text="{Binding}" 
+                                                       FontFamily="{Binding}" 
+                                                       FontSize="12" 
+                                                       VerticalAlignment="Center"/>
+
+                                            <TextBlock Grid.Column="2" 
+                                                       Text="●" 
+                                                       FontSize="10" 
+                                                       Foreground="#FF4CAF50" 
+                                                       VerticalAlignment="Center" 
+                                                       Margin="4,0,0,0"
+                                                       ToolTip="カスタム設定あり"
+                                                       Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                                 <ListBox.ItemContainerStyle>
