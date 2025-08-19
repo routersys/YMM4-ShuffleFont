@@ -240,19 +240,16 @@
             <TabControl Grid.Row="1" Margin="0,0,0,8">
                 <TabItem Header="フォント選択">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="87*"/>
-                            <ColumnDefinition Width="451*"/>
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="0,8,0,8" Grid.ColumnSpan="2">
+                        <Grid Grid.Row="0" Margin="0,8,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -265,59 +262,69 @@
                                     CornerRadius="3">
                                 <Grid>
                                     <TextBox x:Name="SearchTextBox" 
-                                             Style="{StaticResource ModernTextBoxStyle}"
-                                             Background="Transparent" 
-                                             BorderThickness="0" 
-                                             Padding="8,6" 
-                                             VerticalContentAlignment="Center" 
-                                             TextChanged="SearchTextBox_TextChanged"/>
+                                                Style="{StaticResource ModernTextBoxStyle}"
+                                                Background="Transparent" 
+                                                BorderThickness="0" 
+                                                Padding="8,6" 
+                                                VerticalContentAlignment="Center" 
+                                                TextChanged="SearchTextBox_TextChanged"/>
                                     <TextBlock Text="フォント名で検索..." 
-                                               Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
-                                               IsHitTestVisible="False" 
-                                               VerticalAlignment="Center" 
-                                               Margin="10,0,0,0" 
-                                               Visibility="{Binding IsSearchEmpty, ElementName=this, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                                IsHitTestVisible="False" 
+                                                VerticalAlignment="Center" 
+                                                Margin="10,0,0,0" 
+                                                Visibility="{Binding IsSearchEmpty, ElementName=this, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </Grid>
                             </Border>
 
                             <CheckBox Grid.Column="1" 
-                                      x:Name="ShowSelectedCheckBox" 
-                                      Content="選択済み" 
-                                      Style="{StaticResource ModernCheckBoxStyle}"
-                                      Margin="8,0,0,0" 
-                                      VerticalAlignment="Center" 
-                                      Checked="FilterCheckBox_Changed" 
-                                      Unchecked="FilterCheckBox_Changed"/>
+                                        x:Name="ShowSelectedCheckBox" 
+                                        Content="選択済み" 
+                                        Style="{StaticResource ModernCheckBoxStyle}"
+                                        Margin="8,0,0,0" 
+                                        VerticalAlignment="Center" 
+                                        Checked="FilterCheckBox_Changed" 
+                                        Unchecked="FilterCheckBox_Changed"/>
 
                             <CheckBox Grid.Column="2" 
-                                      x:Name="ShowFavoritesCheckBox" 
-                                      Content="お気に入り" 
-                                      Style="{StaticResource ModernCheckBoxStyle}"
-                                      Margin="8,0,8,0" 
-                                      VerticalAlignment="Center" 
-                                      Checked="FilterCheckBox_Changed" 
-                                      Unchecked="FilterCheckBox_Changed"/>
+                                        x:Name="ShowFavoritesCheckBox" 
+                                        Content="お気に入り" 
+                                        Style="{StaticResource ModernCheckBoxStyle}"
+                                        Margin="8,0,8,0" 
+                                        VerticalAlignment="Center" 
+                                        Checked="FilterCheckBox_Changed" 
+                                        Unchecked="FilterCheckBox_Changed"/>
 
                             <Button Grid.Column="3" 
                                     x:Name="FontSettingsButton" 
                                     Content="⚙" 
                                     Style="{StaticResource SettingsButtonStyle}"
-                                    ToolTip="フォント設定"
+                                    ToolTip="高度な設定"
                                     Click="FontSettingsButton_Click"/>
+
+                            <Button Grid.Column="4" x:Name="IndexButton" 
+                                    Click="IndexButton_Click" 
+                                    Style="{StaticResource SettingsButtonStyle}"
+                                    ToolTip="フォントインデックスを再作成"
+                                    Margin="4,0,0,0">
+                                <Path Data="M12,4A8,8 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18C11,18 10.03,17.75 9.2,17.3L7.74,18.76C8.97,19.54 10.43,20 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" 
+                                      Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
+                                      Width="16" Height="16"/>
+                            </Button>
                         </Grid>
 
-                        <Grid Grid.Row="1" Margin="0,0,0,8" Grid.ColumnSpan="2">
+                        <Grid Grid.Row="1" Margin="0,0,0,8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <ComboBox Grid.Row="0" 
-                                      x:Name="FontGroupComboBox" 
-                                      Style="{StaticResource ModernComboBoxStyle}"
-                                      Margin="0,0,0,4"
-                                      SelectionChanged="FontGroupComboBox_SelectionChanged"
-                                      DisplayMemberPath="Name"/>
+                                        x:Name="FontGroupComboBox" 
+                                        Style="{StaticResource ModernComboBoxStyle}"
+                                        Margin="0,0,0,4"
+                                        SelectionChanged="FontGroupComboBox_SelectionChanged"
+                                        DisplayMemberPath="Name"/>
 
                             <WrapPanel Grid.Row="1" Orientation="Horizontal">
                                 <Button x:Name="SelectAllButton" 
@@ -346,14 +353,14 @@
                                 Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
                                 BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
                                 BorderThickness="1" 
-                                CornerRadius="3" Grid.ColumnSpan="2">
+                                CornerRadius="3">
                             <Grid>
                                 <ListView x:Name="FontListView" 
-                                          Background="Transparent" 
-                                          BorderThickness="0" 
-                                          VirtualizingPanel.IsVirtualizing="True" 
-                                          VirtualizingPanel.VirtualizationMode="Recycling"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            Background="Transparent" 
+                                            BorderThickness="0" 
+                                            VirtualizingPanel.IsVirtualizing="True" 
+                                            VirtualizingPanel.VirtualizationMode="Recycling"
+                                            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="4" MinHeight="28">
@@ -365,10 +372,10 @@
                                                 </Grid.ColumnDefinitions>
 
                                                 <CheckBox Grid.Column="0" 
-                                                          IsChecked="{Binding IsSelected}" 
-                                                          VerticalAlignment="Center" 
-                                                          Style="{StaticResource ModernCheckBoxStyle}"
-                                                          Margin="0,0,8,0"/>
+                                                            IsChecked="{Binding IsSelected}" 
+                                                            VerticalAlignment="Center" 
+                                                            Style="{StaticResource ModernCheckBoxStyle}"
+                                                            Margin="0,0,8,0"/>
 
                                                 <Button Grid.Column="1" 
                                                         Background="Transparent" 
@@ -381,20 +388,20 @@
                                                         Cursor="Hand"
                                                         Padding="0">
                                                     <TextBlock Text="★" 
-                                                               FontSize="14" 
-                                                               Foreground="{Binding IsFavorite, Converter={StaticResource BoolToColorConverter}}" 
-                                                               HorizontalAlignment="Center" 
-                                                               VerticalAlignment="Center"/>
+                                                                FontSize="14" 
+                                                                Foreground="{Binding IsFavorite, Converter={StaticResource BoolToColorConverter}}" 
+                                                                HorizontalAlignment="Center" 
+                                                                VerticalAlignment="Center"/>
                                                 </Button>
 
                                                 <TextBlock Grid.Column="2" 
-                                                           Text="{Binding Name}" 
-                                                           VerticalAlignment="Center" 
-                                                           FontFamily="{Binding Name}" 
-                                                           FontSize="12" 
-                                                           Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
-                                                           TextTrimming="CharacterEllipsis" 
-                                                           ToolTip="{Binding Name}">
+                                                            Text="{Binding Name}" 
+                                                            VerticalAlignment="Center" 
+                                                            FontFamily="{Binding Name}" 
+                                                            FontSize="12" 
+                                                            Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
+                                                            TextTrimming="CharacterEllipsis" 
+                                                            ToolTip="{Binding Name}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
@@ -402,19 +409,23 @@
                                                                     <Setter Property="FontWeight" Value="Bold"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"/>
                                                                 </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+                                                                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
 
                                                 <TextBlock Grid.Column="3" 
-                                                           Text="●" 
-                                                           FontSize="10" 
-                                                           Foreground="#FF4CAF50" 
-                                                           VerticalAlignment="Center" 
-                                                           Margin="4,0,0,0"
-                                                           ToolTip="カスタム設定あり"
-                                                           Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
+                                                            Text="●" 
+                                                            FontSize="10" 
+                                                            Foreground="#FF4CAF50" 
+                                                            VerticalAlignment="Center" 
+                                                            Margin="4,0,0,0"
+                                                            ToolTip="カスタム設定あり"
+                                                            Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -437,12 +448,12 @@
                                 </ListView>
 
                                 <TextBlock Text="フォントを読み込み中..." 
-                                           HorizontalAlignment="Center" 
-                                           VerticalAlignment="Center" 
-                                           FontSize="14" 
-                                           Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
-                                           x:Name="LoadingText" 
-                                           Visibility="Collapsed"/>
+                                            HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center" 
+                                            FontSize="14" 
+                                            Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                            x:Name="LoadingText" 
+                                            Visibility="Collapsed"/>
                             </Grid>
                         </Border>
                     </Grid>
@@ -456,9 +467,9 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0"
-                                   Text="選択したフォントの順番をドラッグ＆ドロップで並び替えることができます。この順番は「順番通り」シャッフルモードで使用されます。"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,8"/>
+                                    Text="選択したフォントの順番をドラッグ＆ドロップで並び替えることができます。この順番は「順番通り」シャッフルモードで使用されます。"
+                                    TextWrapping="Wrap"
+                                    Margin="0,0,0,8"/>
 
                         <Grid Grid.Row="1" Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
@@ -467,18 +478,18 @@
                             </Grid.ColumnDefinitions>
 
                             <CheckBox Grid.Column="0" 
-                                      x:Name="ShowOrderNumbersCheckBox" 
-                                      Content="順番番号を表示" 
-                                      Style="{StaticResource ModernCheckBoxStyle}"
-                                      Checked="ShowOrderNumbersCheckBox_Changed" 
-                                      Unchecked="ShowOrderNumbersCheckBox_Changed"
-                                      IsChecked="True"/>
+                                        x:Name="ShowOrderNumbersCheckBox" 
+                                        Content="順番番号を表示" 
+                                        Style="{StaticResource ModernCheckBoxStyle}"
+                                        Checked="ShowOrderNumbersCheckBox_Changed" 
+                                        Unchecked="ShowOrderNumbersCheckBox_Changed"
+                                        IsChecked="True"/>
 
                             <Button Grid.Column="1" 
                                     x:Name="OrderSettingsButton" 
                                     Content="⚙" 
                                     Style="{StaticResource SettingsButtonStyle}"
-                                    ToolTip="フォント設定"
+                                    ToolTip="高度な設定"
                                     Click="FontSettingsButton_Click"/>
                         </Grid>
 
@@ -488,14 +499,14 @@
                                 BorderThickness="1" 
                                 CornerRadius="3">
                             <ListBox x:Name="OrderListBox"
-                                     ItemsSource="{Binding OrderedFontNames, ElementName=this}"
-                                     AllowDrop="True"
-                                     PreviewMouseLeftButtonDown="OrderListBox_PreviewMouseLeftButtonDown"
-                                     MouseMove="OrderListBox_MouseMove"
-                                     Drop="OrderListBox_Drop"
-                                     DragOver="OrderListBox_DragOver"
-                                     Background="Transparent"
-                                     BorderThickness="0">
+                                        ItemsSource="{Binding OrderedFontNames, ElementName=this}"
+                                        AllowDrop="True"
+                                        PreviewMouseLeftButtonDown="OrderListBox_PreviewMouseLeftButtonDown"
+                                        MouseMove="OrderListBox_MouseMove"
+                                        Drop="OrderListBox_Drop"
+                                        DragOver="OrderListBox_DragOver"
+                                        Background="Transparent"
+                                        BorderThickness="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="4">
@@ -506,27 +517,27 @@
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Grid.Column="0" 
-                                                       Text="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource OrderNumberConverter}}" 
-                                                       FontSize="10" 
-                                                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
-                                                       VerticalAlignment="Center" 
-                                                       Margin="0,0,8,0"
-                                                       Visibility="{Binding IsChecked, ElementName=ShowOrderNumbersCheckBox, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        Text="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource OrderNumberConverter}}" 
+                                                        FontSize="10" 
+                                                        Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                                        VerticalAlignment="Center" 
+                                                        Margin="0,0,8,0"
+                                                        Visibility="{Binding IsChecked, ElementName=ShowOrderNumbersCheckBox, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                                             <TextBlock Grid.Column="1" 
-                                                       Text="{Binding}" 
-                                                       FontFamily="{Binding}" 
-                                                       FontSize="12" 
-                                                       VerticalAlignment="Center"/>
+                                                        Text="{Binding}" 
+                                                        FontFamily="{Binding}" 
+                                                        FontSize="12" 
+                                                        VerticalAlignment="Center"/>
 
                                             <TextBlock Grid.Column="2" 
-                                                       Text="●" 
-                                                       FontSize="10" 
-                                                       Foreground="#FF4CAF50" 
-                                                       VerticalAlignment="Center" 
-                                                       Margin="4,0,0,0"
-                                                       ToolTip="カスタム設定あり"
-                                                       Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
+                                                        Text="●" 
+                                                        FontSize="10" 
+                                                        Foreground="#FF4CAF50" 
+                                                        VerticalAlignment="Center" 
+                                                        Margin="4,0,0,0"
+                                                        ToolTip="カスタム設定あり"
+                                                        Visibility="{Binding ., Converter={StaticResource HasCustomSettingsConverter}}"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -549,48 +560,59 @@
                     Padding="8">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" 
+                                x:Name="StatusPanel">
                         <TextBlock Text="総数: " 
-                                   FontSize="11" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    FontSize="11" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                         <TextBlock x:Name="TotalCountText" 
-                                   Text="0" 
-                                   FontSize="11" 
-                                   FontWeight="Bold" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    Text="0" 
+                                    FontSize="11" 
+                                    FontWeight="Bold" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                         <TextBlock Text=" | 選択済み: " 
-                                   FontSize="11" 
-                                   Margin="10,0,0,0" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    FontSize="11" 
+                                    Margin="10,0,0,0" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                         <TextBlock x:Name="SelectedCountText" 
-                                   Text="0" 
-                                   FontSize="11" 
-                                   FontWeight="Bold" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    Text="0" 
+                                    FontSize="11" 
+                                    FontWeight="Bold" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                         <TextBlock Text=" | お気に入り: " 
-                                   FontSize="11" 
-                                   Margin="10,0,0,0" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    FontSize="11" 
+                                    Margin="10,0,0,0" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                         <TextBlock x:Name="FavoriteCountText" 
-                                   Text="0" 
-                                   FontSize="11" 
-                                   FontWeight="Bold" 
-                                   Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                                    Text="0" 
+                                    FontSize="11" 
+                                    FontWeight="Bold" 
+                                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                     </StackPanel>
 
-                    <Path Grid.Column="2"
-                          Data="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" 
-                          Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
-                          Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center" 
-                          ToolTip="新しいバージョンが利用可能です" Cursor="Hand"
-                          Visibility="{Binding NewUpdateAfterIgnore, ElementName=this, Converter={StaticResource BooleanToVisibilityConverter}}"
-                          MouseLeftButtonDown="DownloadIcon_MouseLeftButtonDown"
-                          Margin="0,0,4,0"/>
+                    <ProgressBar Grid.Column="1" 
+                                    x:Name="IndexProgressBar"
+                                    Height="20" 
+                                    Visibility="Collapsed"
+                                    Foreground="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                                    Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Path Data="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" 
+                                Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
+                                Width="16" Height="16" VerticalAlignment="Center" 
+                                ToolTip="新しいバージョンが利用可能です" Cursor="Hand"
+                                Visibility="{Binding NewUpdateAfterIgnore, ElementName=this, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                MouseLeftButtonDown="DownloadIcon_MouseLeftButtonDown"
+                                Margin="0,0,4,0"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

@@ -1,6 +1,8 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Numerics;
-using Vortice;
 using Vortice.DCommon;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
@@ -13,79 +15,91 @@ using YukkuriMovieMaker.Plugin.Effects;
 
 namespace FontShuffle
 {
-    [VideoEffect("シャッフルフォント", ["アニメーション"], ["shuffle font", "sf"], IsAviUtlSupported = false)]
+    [VideoEffect("シャッフルフォント", new[] { "アニメーション" }, new[] { "shuffle font", "sf" }, IsAviUtlSupported = false)]
     public class FontShuffleEffect : VideoEffectBase
     {
         public override string Label => "フォントシャッフル";
 
-        [Display(Name = "表示テキスト", Description = "表示するテキスト")]
+        [Display(Name = "表示テキスト", Description = "表示するテキスト", GroupName = "テキスト設定")]
         [TextEditor]
         public string DisplayText { get => displayText; set => Set(ref displayText, value); }
-        string displayText = "サンプルテキスト";
+        private string displayText = "サンプルテキスト";
 
-        [Display(Name = "幅", Description = "描画領域の幅")]
+        [Display(Name = "幅", Description = "描画領域の幅", GroupName = "テキスト設定")]
         [AnimationSlider("F0", "px", 1, 7680)]
-        public Animation Width { get; } = new Animation(1920, 1, 7680);
+        public Animation Width { get; } = new(1920, 1, 7680);
 
-        [Display(Name = "高さ", Description = "描画領域の高さ")]
+        [Display(Name = "高さ", Description = "描画領域の高さ", GroupName = "テキスト設定")]
         [AnimationSlider("F0", "px", 1, 4320)]
-        public Animation Height { get; } = new Animation(1080, 1, 4320);
+        public Animation Height { get; } = new(1080, 1, 4320);
+
+        [Display(Name = "文字揃え", Description = "テキストの配置", GroupName = "テキスト設定")]
+        [EnumComboBox]
+        public TextAlignmentType TextAlignment { get => textAlignment; set => Set(ref textAlignment, value); }
+        private TextAlignmentType textAlignment = TextAlignmentType.Center;
+
+        [Display(Name = "文字間隔", Description = "文字間の間隔", GroupName = "テキスト設定")]
+        [AnimationSlider("F1", "px", -10, 50)]
+        public Animation LetterSpacing { get; } = new(0, -10, 50);
 
         [Display(Name = "フォント変更間隔", Description = "フォントを変更するフレーム間隔")]
         [AnimationSlider("F0", "フレーム", 1, 120)]
-        public Animation Interval { get; } = new Animation(30, 1, 600);
+        public Animation Interval { get; } = new(30, 1, 600);
 
         [Display(Name = "シャッフルモード", Description = "フォントの選択方法")]
         [EnumComboBox]
         public ShuffleModeType ShuffleMode { get => shuffleMode; set => Set(ref shuffleMode, value); }
-        ShuffleModeType shuffleMode = ShuffleModeType.Auto;
+        private ShuffleModeType shuffleMode = ShuffleModeType.Auto;
 
         [Display(Name = "ランダムシード", Description = "ランダムモード用のシード値")]
         [AnimationSlider("F0", "", 1, 99999)]
-        public Animation RandomSeed { get; } = new Animation(12345, 1, 99999);
+        public Animation RandomSeed { get; } = new(12345, 1, 99999);
 
         [Display(Name = "フォントサイズ", Description = "テキストのサイズ（デフォルト）")]
         [AnimationSlider("F0", "px", 10, 200)]
-        public Animation FontSize { get; } = new Animation(48, 10, 500);
+        public Animation FontSize { get; } = new(48, 10, 500);
 
         [Display(Name = "文字色", Description = "テキストの色（デフォルト）")]
         [ColorPicker]
         public System.Windows.Media.Color TextColor { get => textColor; set => Set(ref textColor, value); }
-        System.Windows.Media.Color textColor = System.Windows.Media.Colors.White;
+        private System.Windows.Media.Color textColor = System.Windows.Media.Colors.White;
 
         [Display(Name = "太字", Description = "太字にする（デフォルト）")]
         [ToggleSlider]
         public bool Bold { get => bold; set => Set(ref bold, value); }
-        bool bold = false;
+        private bool bold = false;
 
         [Display(Name = "イタリック", Description = "斜体にする（デフォルト）")]
         [ToggleSlider]
         public bool Italic { get => italic; set => Set(ref italic, value); }
-        bool italic = false;
+        private bool italic = false;
 
         [Display(Name = "フォント管理", Description = "使用するフォントを選択", GroupName = "フォント設定")]
         [FontShuffleControl]
         public bool FontManagement { get; set; } = true;
 
         public string CurrentFont { get => currentFont; set => Set(ref currentFont, value); }
-        string currentFont = "Yu Gothic UI";
+        private string currentFont = "Yu Gothic UI";
 
         public List<string> SelectedFonts { get => selectedFonts; set => Set(ref selectedFonts, value); }
-        List<string> selectedFonts = new();
+        private List<string> selectedFonts = new();
 
         public List<string> FavoriteFonts { get => favoriteFonts; set => Set(ref favoriteFonts, value); }
-        List<string> favoriteFonts = new();
+        private List<string> favoriteFonts = new();
 
         public List<string> OrderedFonts { get => orderedFonts; set => Set(ref orderedFonts, value); }
-        List<string> orderedFonts = new();
+        private List<string> orderedFonts = new();
+
+        public List<string> HiddenFonts { get => hiddenFonts; set => Set(ref hiddenFonts, value); }
+        private List<string> hiddenFonts = new();
 
         public Dictionary<string, FontCustomSettings> FontCustomSettings { get => fontCustomSettings; set => Set(ref fontCustomSettings, value); }
-        Dictionary<string, FontCustomSettings> fontCustomSettings = new();
+        private Dictionary<string, FontCustomSettings> fontCustomSettings = new();
 
         public string IgnoredVersion { get => ignoredVersion; set => Set(ref ignoredVersion, value); }
-        string ignoredVersion = "";
+        private string ignoredVersion = "";
 
-        static readonly Lazy<(List<string> AllFonts, List<string> JapaneseFonts, List<string> EnglishFonts)> _systemFonts = new(LoadSystemFonts);
+        private static readonly Lazy<FontIndexData> _systemFonts = new(LoadSystemFontsWithIndex);
 
         public override IVideoEffectProcessor CreateVideoEffect(IGraphicsDevicesAndContext devices)
         {
@@ -94,10 +108,10 @@ namespace FontShuffle
 
         public override IEnumerable<string> CreateExoVideoFilters(int keyFrameIndex, ExoOutputDescription exoOutputDescription)
         {
-            return [];
+            return Array.Empty<string>();
         }
 
-        protected override IEnumerable<IAnimatable> GetAnimatables() => [Width, Height, Interval, RandomSeed, FontSize];
+        protected override IEnumerable<IAnimatable> GetAnimatables() => new IAnimatable[] { Width, Height, Interval, RandomSeed, FontSize, LetterSpacing };
 
         public string GetFontForFrame(int frame)
         {
@@ -125,77 +139,138 @@ namespace FontShuffle
                     return selectedFont;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "フォント選択処理");
             }
             return "Yu Gothic UI";
         }
 
         public List<string> GetActiveFontList()
         {
-            var systemFonts = _systemFonts.Value;
-
-            return ShuffleMode switch
+            try
             {
-                ShuffleModeType.Ordered when OrderedFonts.Count > 0 => OrderedFonts,
-                ShuffleModeType.Selected when SelectedFonts.Count > 0 => SelectedFonts,
-                ShuffleModeType.Favorites when FavoriteFonts.Count > 0 => FavoriteFonts,
-                ShuffleModeType.Japanese => systemFonts.JapaneseFonts.Count > 0 ? systemFonts.JapaneseFonts : systemFonts.AllFonts,
-                ShuffleModeType.English => systemFonts.EnglishFonts.Count > 0 ? systemFonts.EnglishFonts : systemFonts.AllFonts,
-                ShuffleModeType.Selected when SelectedFonts.Count == 0 => new List<string>(),
-                ShuffleModeType.Favorites when FavoriteFonts.Count == 0 => new List<string>(),
-                ShuffleModeType.Ordered when OrderedFonts.Count == 0 => new List<string>(),
-                _ => systemFonts.AllFonts
-            };
+                var systemFonts = _systemFonts.Value;
+                var hiddenSet = new HashSet<string>(HiddenFonts);
+
+                var filterFonts = (List<string> fonts) => fonts.Where(f => !hiddenSet.Contains(f)).ToList();
+
+                return ShuffleMode switch
+                {
+                    ShuffleModeType.Ordered when OrderedFonts.Count > 0 => filterFonts(OrderedFonts),
+                    ShuffleModeType.Selected when SelectedFonts.Count > 0 => filterFonts(SelectedFonts),
+                    ShuffleModeType.Favorites when FavoriteFonts.Count > 0 => filterFonts(FavoriteFonts),
+                    ShuffleModeType.Japanese => filterFonts(systemFonts.JapaneseFonts.Count > 0 ? systemFonts.JapaneseFonts : systemFonts.AllFonts),
+                    ShuffleModeType.English => filterFonts(systemFonts.EnglishFonts.Count > 0 ? systemFonts.EnglishFonts : systemFonts.AllFonts),
+                    ShuffleModeType.Selected when SelectedFonts.Count == 0 => new List<string>(),
+                    ShuffleModeType.Favorites when FavoriteFonts.Count == 0 => new List<string>(),
+                    ShuffleModeType.Ordered when OrderedFonts.Count == 0 => new List<string>(),
+                    _ => filterFonts(systemFonts.AllFonts)
+                };
+            }
+            catch (Exception ex)
+            {
+                LogManager.WriteException(ex, "アクティブフォントリスト取得");
+                return new List<string> { "Yu Gothic UI" };
+            }
         }
 
         public FontCustomSettings? GetFontSettings(string fontName)
         {
-            if (FontCustomSettings.ContainsKey(fontName) && FontCustomSettings[fontName].UseCustomSettings)
+            try
             {
-                return FontCustomSettings[fontName];
+                if (FontCustomSettings.ContainsKey(fontName) && FontCustomSettings[fontName].UseCustomSettings)
+                {
+                    return FontCustomSettings[fontName];
+                }
+                return null;
             }
-            return null;
+            catch (Exception ex)
+            {
+                LogManager.WriteException(ex, $"フォント設定取得（{fontName}）");
+                return null;
+            }
         }
 
-        static (List<string> AllFonts, List<string> JapaneseFonts, List<string> EnglishFonts) LoadSystemFonts()
+        private static FontIndexData LoadSystemFontsWithIndex()
         {
-            var allFonts = new List<string>();
-            var japaneseFonts = new List<string>();
-            var englishFonts = new List<string>();
+            try
+            {
+                LogManager.WriteLog("システムフォント読み込み開始");
+
+                var existingIndex = FontIndexer.LoadIndex();
+                if (existingIndex != null)
+                {
+                    LogManager.WriteLog($"既存インデックスを使用（フォント数: {existingIndex.AllFonts.Count}）");
+                    return existingIndex;
+                }
+
+                LogManager.WriteLog("新しいインデックスを作成します");
+                var newIndex = CreateBasicFontIndex();
+                LogManager.WriteLog($"基本インデックス作成完了（フォント数: {newIndex.AllFonts.Count}）");
+                return newIndex;
+            }
+            catch (Exception ex)
+            {
+                LogManager.WriteException(ex, "システムフォント読み込み");
+                return CreateFallbackFontIndex();
+            }
+        }
+
+        private static FontIndexData CreateBasicFontIndex()
+        {
+            var index = new FontIndexData();
+            var fontSet = new HashSet<string>();
 
             try
             {
-                var fontSet = new HashSet<string>();
                 foreach (var fontFamily in System.Windows.Media.Fonts.SystemFontFamilies)
                 {
-                    string fontName = GetFontFamilyName(fontFamily);
-                    if (!string.IsNullOrEmpty(fontName) && fontSet.Add(fontName))
+                    try
                     {
-                        allFonts.Add(fontName);
+                        string fontName = GetFontFamilyName(fontFamily);
+                        if (!string.IsNullOrEmpty(fontName) && fontSet.Add(fontName))
+                        {
+                            index.AllFonts.Add(fontName);
 
-                        if (IsJapaneseFont(fontName))
-                            japaneseFonts.Add(fontName);
-                        else
-                            englishFonts.Add(fontName);
+                            if (IsJapaneseFontBasic(fontName))
+                                index.JapaneseFonts.Add(fontName);
+                            else
+                                index.EnglishFonts.Add(fontName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.WriteException(ex, "個別フォント処理");
                     }
                 }
 
-                allFonts.Sort();
-                japaneseFonts.Sort();
-                englishFonts.Sort();
+                index.AllFonts.Sort();
+                index.JapaneseFonts.Sort();
+                index.EnglishFonts.Sort();
             }
-            catch
+            catch (Exception ex)
             {
-                allFonts.AddRange(["Yu Gothic UI", "Meiryo", "MS Gothic", "Arial", "Times New Roman", "Calibri", "Verdana"]);
-                japaneseFonts.AddRange(["Yu Gothic UI", "Meiryo", "MS Gothic"]);
-                englishFonts.AddRange(["Arial", "Times New Roman", "Calibri", "Verdana"]);
+                LogManager.WriteException(ex, "基本フォントインデックス作成");
+                return CreateFallbackFontIndex();
             }
 
-            return (allFonts, japaneseFonts, englishFonts);
+            return index;
         }
 
-        static string GetFontFamilyName(System.Windows.Media.FontFamily fontFamily)
+        private static FontIndexData CreateFallbackFontIndex()
+        {
+            LogManager.WriteLog("フォールバックフォントインデックスを作成", LogLevel.Warning);
+
+            return new FontIndexData
+            {
+                AllFonts = new List<string> { "Yu Gothic UI", "Meiryo", "MS Gothic", "Arial", "Times New Roman", "Calibri", "Verdana" },
+                JapaneseFonts = new List<string> { "Yu Gothic UI", "Meiryo", "MS Gothic" },
+                EnglishFonts = new List<string> { "Arial", "Times New Roman", "Calibri", "Verdana" }
+            };
+        }
+
+        private static string GetFontFamilyName(System.Windows.Media.FontFamily fontFamily)
         {
             try
             {
@@ -205,59 +280,55 @@ namespace FontShuffle
                 }
                 return fontFamily.Source ?? "Unknown Font";
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "フォント名取得");
                 return "Unknown Font";
             }
         }
 
-        static bool IsJapaneseFont(string fontName)
+        private static bool IsJapaneseFontBasic(string fontName)
         {
-            var japaneseKeywords = new[] { "Gothic", "Mincho", "游", "Yu", "MS", "メイリオ", "Meiryo", "UD", "游ゴシック", "游明朝", "ヒラギノ", "小塚", "源ノ角", "Noto" };
-            return japaneseKeywords.Any(keyword => fontName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+            try
+            {
+                var japaneseKeywords = new[] {
+                    "Gothic", "Mincho", "游", "Yu", "MS", "メイリオ", "Meiryo", "UD",
+                    "游ゴシック", "游明朝", "ヒラギノ", "小塚", "源ノ角", "Noto"
+                };
+                return japaneseKeywords.Any(keyword => fontName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                LogManager.WriteException(ex, $"日本語フォント判定（{fontName}）");
+                return false;
+            }
         }
-    }
-
-    public enum ShuffleModeType
-    {
-        [Display(Name = "自動（順次）")]
-        Auto,
-        [Display(Name = "ランダム")]
-        Random,
-        [Display(Name = "選択フォントのみ")]
-        Selected,
-        [Display(Name = "お気に入りのみ")]
-        Favorites,
-        [Display(Name = "日本語フォントのみ")]
-        Japanese,
-        [Display(Name = "英数字フォントのみ")]
-        English,
-        [Display(Name = "順番通り")]
-        Ordered
     }
 
     public class FontShuffleProcessor : IVideoEffectProcessor
     {
-        readonly IGraphicsDevicesAndContext devices;
-        readonly FontShuffleEffect effect;
+        private readonly IGraphicsDevicesAndContext devices;
+        private readonly FontShuffleEffect effect;
 
-        int lastFrame = -1;
-        string? currentFont;
+        private int lastFrame = -1;
+        private string? currentFont;
 
-        IDWriteTextFormat? currentTextFormat;
-        ID2D1SolidColorBrush? textBrush;
-        IDWriteFactory? dwriteFactory;
-        ID2D1CommandList? commandList;
-        ID2D1Image? inputImage;
+        private IDWriteTextFormat? currentTextFormat;
+        private ID2D1SolidColorBrush? textBrush;
+        private IDWriteFactory? dwriteFactory;
+        private ID2D1CommandList? commandList;
+        private ID2D1Image? inputImage;
 
-        string lastUsedFont = "";
-        float lastFontSize = 0;
-        Color4 lastColor = new(0, 0, 0, 0);
-        string lastText = "";
-        bool lastBold = false;
-        bool lastItalic = false;
-        bool isInitialized = false;
-        SizeI currentSize = new(1920, 1080);
+        private string lastUsedFont = "";
+        private float lastFontSize = 0;
+        private Color4 lastColor = new(0, 0, 0, 0);
+        private string lastText = "";
+        private bool lastBold = false;
+        private bool lastItalic = false;
+        private float lastLetterSpacing = 0;
+        private TextAlignmentType lastTextAlignment = TextAlignmentType.Center;
+        private bool isInitialized = false;
+        private SizeI currentSize = new(1920, 1080);
 
         public ID2D1Image? Output => commandList;
 
@@ -268,7 +339,7 @@ namespace FontShuffle
             Initialize();
         }
 
-        void Initialize()
+        private void Initialize()
         {
             try
             {
@@ -279,11 +350,21 @@ namespace FontShuffle
                     if (result.Success)
                     {
                         isInitialized = true;
+                        LogManager.WriteLog("FontShuffleProcessor初期化完了");
+                    }
+                    else
+                    {
+                        LogManager.WriteLog("DWriteファクトリ作成に失敗", LogLevel.Error);
                     }
                 }
+                else
+                {
+                    LogManager.WriteLog("DeviceContextがnull", LogLevel.Error);
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "FontShuffleProcessor初期化");
                 isInitialized = false;
             }
         }
@@ -345,10 +426,14 @@ namespace FontShuffle
                 var color = new Color4(mediaColor.R / 255f, mediaColor.G / 255f, mediaColor.B / 255f, mediaColor.A / 255f);
                 var bold = customSettings?.Bold ?? effect.Bold;
                 var italic = customSettings?.Italic ?? effect.Italic;
+                var letterSpacing = (float)effect.LetterSpacing.GetValue(frame, length, fps);
+                var textAlignment = effect.TextAlignment;
 
                 bool needsUpdate = currentFont != lastUsedFont || Math.Abs(fontSize - lastFontSize) > 0.1f ||
                                    !ColorsEqual(color, lastColor) || effect.DisplayText != lastText ||
-                                   bold != lastBold || italic != lastItalic;
+                                   bold != lastBold || italic != lastItalic ||
+                                   Math.Abs(letterSpacing - lastLetterSpacing) > 0.1f ||
+                                   textAlignment != lastTextAlignment;
 
                 if (needsUpdate)
                 {
@@ -367,18 +452,21 @@ namespace FontShuffle
                     lastText = effect.DisplayText;
                     lastBold = bold;
                     lastItalic = italic;
+                    lastLetterSpacing = letterSpacing;
+                    lastTextAlignment = textAlignment;
                 }
 
-                RenderText();
+                RenderText(frame, length, fps);
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "エフェクト更新処理");
             }
 
             return effectDescription.DrawDescription;
         }
 
-        void UpdateTextFormat(string fontName, float fontSize, bool bold, bool italic)
+        private void UpdateTextFormat(string fontName, float fontSize, bool bold, bool italic)
         {
             try
             {
@@ -393,8 +481,9 @@ namespace FontShuffle
                             italic ? FontStyle.Italic : FontStyle.Normal,
                             FontStretch.Normal, fontSize);
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogManager.WriteException(ex, $"フォント作成失敗（{fontName}）、フォールバック");
                         currentTextFormat = dwriteFactory.CreateTextFormat("Arial", null,
                             bold ? FontWeight.Bold : FontWeight.Normal,
                             italic ? FontStyle.Italic : FontStyle.Normal,
@@ -402,40 +491,43 @@ namespace FontShuffle
                     }
                     if (currentTextFormat != null)
                     {
-                        currentTextFormat.TextAlignment = TextAlignment.Center;
-                        currentTextFormat.ParagraphAlignment = ParagraphAlignment.Center;
+                        currentTextFormat.TextAlignment = TextAlignment.Leading;
+                        currentTextFormat.ParagraphAlignment = ParagraphAlignment.Near;
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "テキストフォーマット更新");
                 currentTextFormat = null;
             }
         }
 
-        void UpdateTextBrush(Color4 color)
+        private void UpdateTextBrush(Color4 color)
         {
             try
             {
                 if (textBrush != null && devices?.DeviceContext != null)
                     textBrush.Color = color;
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "テキストブラシ更新");
                 try
                 {
                     textBrush?.Dispose();
                     if (devices?.DeviceContext != null)
                         textBrush = devices.DeviceContext.CreateSolidColorBrush(color);
                 }
-                catch
+                catch (Exception ex2)
                 {
+                    LogManager.WriteException(ex2, "テキストブラシ再作成");
                     textBrush = null;
                 }
             }
         }
 
-        void RenderText()
+        private void RenderText(int frame, int length, float fps)
         {
             try
             {
@@ -460,18 +552,49 @@ namespace FontShuffle
                             using var textLayout = dwriteFactory.CreateTextLayout(
                                 effect.DisplayText,
                                 currentTextFormat,
-                                currentSize.Width,
-                                currentSize.Height
+                                float.MaxValue,
+                                float.MaxValue
                             );
 
-                            var origin = new Vector2(-currentSize.Width / 2f, -currentSize.Height / 2f);
+                            var letterSpacing = (float)effect.LetterSpacing.GetValue(frame, length, (int)fps);
+                            if (Math.Abs(letterSpacing) > 0.001f)
+                            {
+                                using var textLayout1 = textLayout.QueryInterfaceOrNull<IDWriteTextLayout1>();
+                                if (textLayout1 != null)
+                                {
+                                    textLayout1.SetCharacterSpacing(letterSpacing, 0, 0, new TextRange(0, effect.DisplayText.Length));
+                                }
+                            }
+
+                            var textMetrics = textLayout.Metrics;
+
+                            float x, y;
+
+                            y = -textMetrics.Height / 2f - textMetrics.Top;
+
+                            switch (effect.TextAlignment)
+                            {
+                                case TextAlignmentType.Left:
+                                    x = -currentSize.Width / 2f - textMetrics.Left;
+                                    break;
+                                case TextAlignmentType.Right:
+                                    x = currentSize.Width / 2f - textMetrics.Left - textMetrics.Width;
+                                    break;
+                                case TextAlignmentType.Center:
+                                default:
+                                    x = -textMetrics.Width / 2f - textMetrics.Left;
+                                    break;
+                            }
+
+                            var origin = new Vector2(x, y);
                             dc.DrawTextLayout(origin, textLayout, textBrush);
                         }
                         dc.EndDraw();
                         commandList.Close();
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogManager.WriteException(ex, "テキスト描画");
                     }
                     finally
                     {
@@ -480,12 +603,13 @@ namespace FontShuffle
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "テキスト描画処理");
             }
         }
 
-        static bool ColorsEqual(Color4 a, Color4 b)
+        private static bool ColorsEqual(Color4 a, Color4 b)
         {
             return Math.Abs(a.R - b.R) < 0.001f && Math.Abs(a.G - b.G) < 0.001f &&
                    Math.Abs(a.B - b.B) < 0.001f && Math.Abs(a.A - b.A) < 0.001f;
@@ -510,8 +634,9 @@ namespace FontShuffle
                 commandList?.Dispose();
                 dwriteFactory?.Dispose();
             }
-            catch
+            catch (Exception ex)
             {
+                LogManager.WriteException(ex, "FontShuffleProcessor解放");
             }
             currentTextFormat = null;
             textBrush = null;

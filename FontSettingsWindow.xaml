@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:FontShuffle"
-        Title="フォント設定" 
-        Height="600" 
-        Width="900"
+        Title="高度な設定" 
+        Height="700" 
+        Width="1000"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
 
@@ -45,7 +45,17 @@
             <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
         </Style>
 
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinHeight" Value="24"/>
+        </Style>
+
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <local:HasCustomSettingsConverter x:Key="HasCustomSettingsConverter"/>
     </Window.Resources>
 
     <Grid Margin="12">
@@ -56,250 +66,467 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" 
-                   Text="各フォントの個別設定を行えます。設定しない項目はデフォルト値が使用されます。" 
+                   Text="フォント、グループ、非表示フォントなどの高度な設定を管理できます。" 
                    FontSize="12" 
                    Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
                    Margin="0,0,0,12"/>
 
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="8"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" 
-                    Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
-                    BorderThickness="1" 
-                    CornerRadius="3">
+        <TabControl Grid.Row="1" Margin="0,0,0,12">
+            <TabItem Header="フォント設定">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" 
-                               Text="選択されたフォント" 
-                               FontWeight="Bold" 
-                               Margin="8,8,8,4" 
-                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
-
-                    <ListBox Grid.Row="1" 
-                             x:Name="FontListBox" 
-                             Background="Transparent" 
-                             BorderThickness="0" 
-                             Margin="4" 
-                             SelectionChanged="FontListBox_SelectionChanged">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}" 
-                                           FontFamily="{Binding Name}" 
-                                           FontSize="12" 
-                                           Margin="4,2"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-            </Border>
-
-            <GridSplitter Grid.Column="1" 
-                          HorizontalAlignment="Stretch" 
-                          Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
-
-            <Border Grid.Column="2" 
-                    Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
-                    BorderThickness="1" 
-                    CornerRadius="3">
-                <Grid>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" 
-                                  x:Name="SettingsScrollViewer" 
-                                  Visibility="Collapsed">
-                        <Grid Margin="12" x:Name="SettingsGrid">
+                    <Border Grid.Column="0" 
+                            Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
+                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                            BorderThickness="1" 
+                            CornerRadius="3">
+                        <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" 
-                                       x:Name="CurrentFontNameText" 
-                                       Text="" 
-                                       FontSize="16" 
+                                       Text="選択されたフォント" 
                                        FontWeight="Bold" 
-                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
-                                       Margin="0,0,0,16"/>
+                                       Margin="8,8,8,4" 
+                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
 
-                            <CheckBox Grid.Row="1" 
-                                      x:Name="UseCustomSettingsCheckBox" 
-                                      Content="このフォントのカスタム設定を有効にする" 
-                                      Style="{StaticResource ModernCheckBoxStyle}" 
-                                      Margin="0,0,0,12"
-                                      Checked="UseCustomSettingsCheckBox_Changed"
-                                      Unchecked="UseCustomSettingsCheckBox_Changed"/>
+                            <ListBox Grid.Row="1" 
+                                     x:Name="FontListBox" 
+                                     Background="Transparent" 
+                                     BorderThickness="0" 
+                                     Margin="4" 
+                                     SelectionChanged="FontListBox_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" 
+                                                   FontFamily="{Binding Name}" 
+                                                   FontSize="12" 
+                                                   Margin="4,2"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
 
-                            <StackPanel Grid.Row="2" 
-                                        x:Name="CustomSettingsPanel" 
-                                        Visibility="Collapsed">
+                    <GridSplitter Grid.Column="1" 
+                                  HorizontalAlignment="Stretch" 
+                                  Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
 
-                                <Grid Margin="0,0,0,12">
+                    <Border Grid.Column="2" 
+                            Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
+                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                            BorderThickness="1" 
+                            CornerRadius="3">
+                        <Grid>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                                          x:Name="SettingsScrollViewer" 
+                                          Visibility="Collapsed">
+                                <Grid Margin="12" x:Name="SettingsGrid">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="60"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" 
-                                               Text="フォントサイズ:" 
-                                               VerticalAlignment="Center" 
-                                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
+                                    <TextBlock Grid.Row="0" 
+                                               x:Name="CurrentFontNameText" 
+                                               Text="" 
+                                               FontSize="16" 
+                                               FontWeight="Bold" 
+                                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
+                                               Margin="0,0,0,16"/>
 
-                                    <Slider Grid.Row="0" Grid.Column="1" 
-                                            x:Name="FontSizeSlider" 
-                                            Minimum="10" 
-                                            Maximum="200" 
-                                            TickFrequency="5" 
-                                            IsSnapToTickEnabled="True" 
-                                            Style="{StaticResource ModernSliderStyle}" 
-                                            Margin="8,0"
-                                            ValueChanged="FontSizeSlider_ValueChanged"/>
-
-                                    <TextBox Grid.Row="0" Grid.Column="2" 
-                                             x:Name="FontSizeTextBox" 
-                                             Style="{StaticResource ModernTextBoxStyle}" 
-                                             Width="50" 
-                                             TextAlignment="Center"
-                                             TextChanged="FontSizeTextBox_TextChanged"/>
-
-                                    <CheckBox Grid.Row="0" Grid.Column="3" 
-                                              x:Name="UseDynamicSizeCheckBox" 
-                                              Content="動的" 
+                                    <CheckBox Grid.Row="1" 
+                                              x:Name="UseCustomSettingsCheckBox" 
+                                              Content="このフォントのカスタム設定を有効にする" 
                                               Style="{StaticResource ModernCheckBoxStyle}" 
-                                              Margin="8,0,0,0"
-                                              ToolTip="YMM4標準のフォントサイズを使用"
-                                              Checked="UseDynamicSizeCheckBox_Changed"
-                                              Unchecked="UseDynamicSizeCheckBox_Changed"/>
-                                </Grid>
+                                              Margin="0,0,0,12"
+                                              Checked="UseCustomSettingsCheckBox_Changed"
+                                              Unchecked="UseCustomSettingsCheckBox_Changed"/>
 
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Row="2" 
+                                                x:Name="CustomSettingsPanel" 
+                                                Visibility="Collapsed">
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" 
-                                               Text="文字色:" 
-                                               VerticalAlignment="Center" 
-                                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="8,0">
-                                        <Border x:Name="ColorPreviewBorder" 
-                                               Width="30" 
-                                               Height="20" 
-                                               BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
-                                               BorderThickness="1" 
-                                               Margin="0,0,8,0">
-                                            <Border.Background>
-                                                <SolidColorBrush x:Name="ColorPreviewBrush" Color="White"/>
-                                            </Border.Background>
-                                        </Border>
-                                        <Button Content="色を選択" 
-                                                Click="SelectColorButton_Click" 
-                                                Style="{StaticResource ModernButtonStyle}"
-                                                Margin="0,0,8,0"/>
-                                        <TextBox x:Name="ColorCodeTextBox" 
-                                                 Style="{StaticResource ModernTextBoxStyle}" 
-                                                 Width="80" 
-                                                 Text="#FFFFFF"
-                                                 TextChanged="ColorCodeTextBox_TextChanged"
-                                                 ToolTip="カラーコード (#RRGGBB)"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                                       Text="フォントサイズ:" 
+                                                       VerticalAlignment="Center" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
+
+                                            <Slider Grid.Row="0" Grid.Column="1" 
+                                                    x:Name="FontSizeSlider" 
+                                                    Minimum="10" 
+                                                    Maximum="200" 
+                                                    TickFrequency="5" 
+                                                    IsSnapToTickEnabled="True" 
+                                                    Style="{StaticResource ModernSliderStyle}" 
+                                                    Margin="8,0"
+                                                    ValueChanged="FontSizeSlider_ValueChanged"/>
+
+                                            <TextBox Grid.Row="0" Grid.Column="2" 
+                                                     x:Name="FontSizeTextBox" 
+                                                     Style="{StaticResource ModernTextBoxStyle}" 
+                                                     Width="70" 
+                                                     TextAlignment="Center"
+                                                     TextChanged="FontSizeTextBox_TextChanged"/>
+
+                                            <CheckBox Grid.Row="0" Grid.Column="3" 
+                                                      x:Name="UseDynamicSizeCheckBox" 
+                                                      Content="動的" 
+                                                      Style="{StaticResource ModernCheckBoxStyle}" 
+                                                      Margin="8,0,0,0"
+                                                      ToolTip="YMM4標準のフォントサイズを使用"
+                                                      Checked="UseDynamicSizeCheckBox_Changed"
+                                                      Unchecked="UseDynamicSizeCheckBox_Changed"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                                       Text="文字色:" 
+                                                       VerticalAlignment="Center" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="8,0">
+                                                <Border x:Name="ColorPreviewBorder" 
+                                                       Width="30" 
+                                                       Height="20" 
+                                                       BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                                       BorderThickness="1" 
+                                                       Margin="0,0,8,0">
+                                                    <Border.Background>
+                                                        <SolidColorBrush x:Name="ColorPreviewBrush" Color="White"/>
+                                                    </Border.Background>
+                                                </Border>
+                                                <Button Content="色を選択" 
+                                                        Click="SelectColorButton_Click" 
+                                                        Style="{StaticResource ModernButtonStyle}"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBox x:Name="ColorCodeTextBox" 
+                                                         Style="{StaticResource ModernTextBoxStyle}" 
+                                                         Width="80" 
+                                                         Text="#FFFFFF"
+                                                         TextChanged="ColorCodeTextBox_TextChanged"
+                                                         ToolTip="カラーコード (#RRGGBB)"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                            <TextBlock Text="スタイル:" 
+                                                       VerticalAlignment="Center" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
+                                                       Width="120"/>
+
+                                            <CheckBox x:Name="BoldCheckBox" 
+                                                      Content="太字" 
+                                                      Style="{StaticResource ModernCheckBoxStyle}" 
+                                                      Margin="8,0,16,0"
+                                                      Checked="StyleCheckBox_Changed"
+                                                      Unchecked="StyleCheckBox_Changed"/>
+
+                                            <CheckBox x:Name="ItalicCheckBox" 
+                                                      Content="イタリック" 
+                                                      Style="{StaticResource ModernCheckBoxStyle}"
+                                                      Checked="StyleCheckBox_Changed"
+                                                      Unchecked="StyleCheckBox_Changed"/>
+                                        </StackPanel>
+
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" 
+                                                       Text="プレビュー:" 
+                                                       VerticalAlignment="Top" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
+                                                       Margin="0,8,0,0"/>
+
+                                            <Border Grid.Column="1" 
+                                                    Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
+                                                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                                    BorderThickness="1" 
+                                                    Padding="12" 
+                                                    Margin="8,0"
+                                                    MinHeight="80">
+                                                <TextBlock x:Name="PreviewTextBlock" 
+                                                           Text="サンプルテキスト ABC 123" 
+                                                           FontSize="24"
+                                                           TextWrapping="Wrap"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal" Margin="120,0,0,0">
+                                            <Button Content="リセット" 
+                                                    Click="ResetButton_Click" 
+                                                    Style="{StaticResource ModernButtonStyle}" 
+                                                    Margin="0,0,8,0"/>
+                                            <Button Content="デフォルトに戻す" 
+                                                    Click="DefaultButton_Click" 
+                                                    Style="{StaticResource ModernButtonStyle}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
+                            </ScrollViewer>
 
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                    <TextBlock Text="スタイル:" 
-                                               VerticalAlignment="Center" 
-                                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
-                                               Width="120"/>
+                            <TextBlock Text="フォントを選択してください" 
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" 
+                                       FontSize="14" 
+                                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                       x:Name="NoSelectionText"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
 
-                                    <CheckBox x:Name="BoldCheckBox" 
-                                              Content="太字" 
-                                              Style="{StaticResource ModernCheckBoxStyle}" 
-                                              Margin="8,0,16,0"
-                                              Checked="StyleCheckBox_Changed"
-                                              Unchecked="StyleCheckBox_Changed"/>
+            <TabItem Header="グループ管理">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                                    <CheckBox x:Name="ItalicCheckBox" 
-                                              Content="イタリック" 
-                                              Style="{StaticResource ModernCheckBoxStyle}"
-                                              Checked="StyleCheckBox_Changed"
-                                              Unchecked="StyleCheckBox_Changed"/>
-                                </StackPanel>
+                    <TextBlock Grid.Row="0" 
+                               Text="カスタムフォントグループを管理できます。グループ名の変更、削除、フォントの追加・削除が可能です。" 
+                               TextWrapping="Wrap" 
+                               Margin="0,0,0,12"/>
 
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Column="0" 
-                                               Text="プレビュー:" 
-                                               VerticalAlignment="Top" 
-                                               Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}" 
-                                               Margin="0,8,0,0"/>
+                        <Border Grid.Column="0" 
+                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
+                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                BorderThickness="1" 
+                                CornerRadius="3">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                                    <Border Grid.Column="1" 
-                                            Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
-                                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
-                                            BorderThickness="1" 
-                                            Padding="12" 
-                                            Margin="8,0">
-                                        <TextBlock x:Name="PreviewTextBlock" 
-                                                   Text="サンプルテキスト ABC 123" 
-                                                   FontSize="16"
-                                                   TextWrapping="Wrap"/>
-                                    </Border>
-                                </Grid>
+                                <TextBlock Grid.Row="0" 
+                                           Text="グループ一覧" 
+                                           FontWeight="Bold" 
+                                           Margin="8,8,8,4"/>
 
-                                <StackPanel Orientation="Horizontal" Margin="120,0,0,0">
-                                    <Button Content="リセット" 
-                                            Click="ResetButton_Click" 
+                                <ListBox Grid.Row="1" 
+                                         x:Name="GroupListBox" 
+                                         Background="Transparent" 
+                                         BorderThickness="0" 
+                                         Margin="4"
+                                         SelectionChanged="GroupListBox_SelectionChanged">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" Margin="4,2"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <StackPanel Grid.Row="2" Margin="8" Orientation="Horizontal">
+                                    <Button Content="新規作成" 
+                                            Click="CreateNewGroupButton_Click" 
                                             Style="{StaticResource ModernButtonStyle}" 
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="デフォルトに戻す" 
-                                            Click="DefaultButton_Click" 
+                                            Margin="0,0,4,0"/>
+                                    <Button Content="削除" 
+                                            Click="DeleteGroupButton_Click" 
                                             Style="{StaticResource ModernButtonStyle}"/>
                                 </StackPanel>
-                            </StackPanel>
-                        </Grid>
-                    </ScrollViewer>
+                            </Grid>
+                        </Border>
 
-                    <TextBlock Text="フォントを選択してください" 
-                               HorizontalAlignment="Center" 
-                               VerticalAlignment="Center" 
-                               FontSize="14" 
-                               Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
-                               x:Name="NoSelectionText"/>
+                        <GridSplitter Grid.Column="1" 
+                                      HorizontalAlignment="Stretch" 
+                                      Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"/>
+
+                        <Border Grid.Column="2" 
+                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
+                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                BorderThickness="1" 
+                                CornerRadius="3">
+                            <Grid>
+                                <Grid x:Name="GroupEditPanel" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0" Margin="12,12,12,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" 
+                                                   Text="グループ名:" 
+                                                   VerticalAlignment="Center" 
+                                                   Margin="0,0,8,0"/>
+                                        <TextBox Grid.Column="1" 
+                                                 x:Name="GroupNameTextBox" 
+                                                 Style="{StaticResource ModernTextBoxStyle}" 
+                                                 TextChanged="GroupNameTextBox_TextChanged"/>
+                                        <Button Grid.Column="2" 
+                                                Content="保存" 
+                                                Click="SaveGroupButton_Click" 
+                                                Style="{StaticResource ModernButtonStyle}" 
+                                                Margin="8,0,0,0"/>
+                                    </Grid>
+
+                                    <TextBlock Grid.Row="1" 
+                                               Text="フォント一覧:" 
+                                               FontWeight="Bold" 
+                                               Margin="12,0,12,8"/>
+
+                                    <ListBox Grid.Row="2" 
+                                             x:Name="GroupFontListBox" 
+                                             Background="Transparent" 
+                                             BorderThickness="0" 
+                                             Margin="12,0,12,12">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" 
+                                                               Text="{Binding}" 
+                                                               FontFamily="{Binding}" 
+                                                               VerticalAlignment="Center" 
+                                                               Margin="4,2"/>
+                                                    <Button Grid.Column="1" 
+                                                            Content="削除" 
+                                                            Click="RemoveFontFromGroupButton_Click" 
+                                                            Style="{StaticResource ModernButtonStyle}" 
+                                                            FontSize="10" 
+                                                            Padding="4,2"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+
+                                <TextBlock Text="グループを選択してください" 
+                                           HorizontalAlignment="Center" 
+                                           VerticalAlignment="Center" 
+                                           FontSize="14" 
+                                           Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                           x:Name="NoGroupSelectionText"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </Border>
-        </Grid>
+            </TabItem>
+
+            <TabItem Header="非表示フォント">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" 
+                               Text="非表示にしたフォントを管理できます。表示に戻したいフォントを選択してください。" 
+                               TextWrapping="Wrap" 
+                               Margin="0,0,0,12"/>
+
+                    <Border Grid.Row="1" 
+                            Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" 
+                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                            BorderThickness="1" 
+                            CornerRadius="3">
+                        <Grid>
+                            <ListBox x:Name="HiddenFontListBox" 
+                                     Background="Transparent" 
+                                     BorderThickness="0" 
+                                     Margin="8">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" 
+                                                       Text="{Binding Name}" 
+                                                       FontFamily="{Binding Name}" 
+                                                       VerticalAlignment="Center" 
+                                                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                                       TextDecorations="Strikethrough"/>
+                                            <Button Grid.Column="1" 
+                                                    Content="表示に戻す" 
+                                                    Click="RestoreFontButton_Click" 
+                                                    Style="{StaticResource ModernButtonStyle}" 
+                                                    Padding="8,2"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <TextBlock Text="非表示のフォントはありません" 
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" 
+                                       FontSize="14" 
+                                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" 
+                                       x:Name="NoHiddenFontsText"/>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="すべて表示に戻す" 
+                                Click="RestoreAllFontsButton_Click" 
+                                Style="{StaticResource ModernButtonStyle}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="OK" 
