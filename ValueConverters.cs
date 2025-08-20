@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Threading.Tasks;
 
 namespace FontShuffle
 {
@@ -13,11 +14,13 @@ namespace FontShuffle
         {
             try
             {
-                return (value is bool v && v) ? (SolidColorBrush)new BrushConverter().ConvertFrom("#FFD700")! : (SolidColorBrush)new BrushConverter().ConvertFrom("#FF808080")!;
+                return (value is bool v && v) ?
+                    (SolidColorBrush)new BrushConverter().ConvertFrom("#FFD700")! :
+                    (SolidColorBrush)new BrushConverter().ConvertFrom("#FF808080")!;
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "BoolToColor変換");
+                _ = Task.Run(() => LogManager.WriteException(ex, "BoolToColor変換"));
                 return (SolidColorBrush)new BrushConverter().ConvertFrom("#FF808080")!;
             }
         }
@@ -46,7 +49,7 @@ namespace FontShuffle
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "HasCustomSettings変換");
+                _ = Task.Run(() => LogManager.WriteException(ex, "HasCustomSettings変換"));
                 return Visibility.Collapsed;
             }
         }
@@ -71,7 +74,7 @@ namespace FontShuffle
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "ColorToBrush変換");
+                _ = Task.Run(() => LogManager.WriteException(ex, "ColorToBrush変換"));
                 return new SolidColorBrush(Colors.White);
             }
         }
@@ -88,7 +91,7 @@ namespace FontShuffle
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "BrushToColor変換");
+                _ = Task.Run(() => LogManager.WriteException(ex, "BrushToColor変換"));
                 return Colors.White;
             }
         }
@@ -121,7 +124,7 @@ namespace FontShuffle
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "OrderNumber変換");
+                _ = Task.Run(() => LogManager.WriteException(ex, "OrderNumber変換"));
                 return "";
             }
         }

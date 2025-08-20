@@ -15,16 +15,17 @@ using YukkuriMovieMaker.Commons;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace FontShuffle
 {
     public partial class FontShuffleControl : UserControl, IPropertyEditorControl, INotifyPropertyChanged
     {
-        public static readonly DependencyProperty EffectProperty =
+        public static new readonly DependencyProperty EffectProperty =
             DependencyProperty.Register(nameof(Effect), typeof(FontShuffleEffect), typeof(FontShuffleControl),
                 new PropertyMetadata(null, OnEffectChanged));
 
-        public FontShuffleEffect? Effect
+        public new FontShuffleEffect? Effect
         {
             get => (FontShuffleEffect?)GetValue(EffectProperty);
             set => SetValue(EffectProperty, value);
@@ -34,11 +35,15 @@ namespace FontShuffle
         public bool IsSearchEmpty => string.IsNullOrEmpty(SearchText);
 
         public ObservableCollection<string> OrderedFontNames { get; set; } = new();
-        public ObservableCollection<FontGroup> FontGroups { get; set; } = new();
+        public ObservableCollection<FontGroup> DisplayFontGroups { get; set; } = new();
 
-        bool isUpdatingUI = false;
-        ObservableCollection<FontItem> allFonts = new();
-        ICollectionView filteredFontsView;
+        private bool _isUpdatingUI = false;
+        private ObservableCollection<FontItem> _allFonts = new();
+        private ICollectionView _filteredFontsView = null!;
+        private CancellationTokenSource? _indexCreationCancellationTokenSource;
+        private readonly SemaphoreSlim _fontLoadingSemaphore = new(1, 1);
+        private volatile bool _isLoaded = false;
+        private volatile bool _isDisposed = false;
 
         public event EventHandler? BeginEdit;
         public event EventHandler? EndEdit;
@@ -69,11 +74,11 @@ namespace FontShuffle
             try
             {
                 InitializeComponent();
-                filteredFontsView = CollectionViewSource.GetDefaultView(allFonts);
-                FontListView.ItemsSource = filteredFontsView;
-                FontGroupComboBox.ItemsSource = FontGroups;
+                _filteredFontsView = CollectionViewSource.GetDefaultView(_allFonts);
+                FontListView.ItemsSource = _filteredFontsView;
+                FontGroupComboBox.ItemsSource = DisplayFontGroups;
                 SetupContextMenu();
-                InitializeFontGroups();
+                UpdateFontGroups();
                 LogManager.WriteLog("FontShuffleControlが初期化されました");
             }
             catch (Exception ex)
@@ -82,19 +87,32 @@ namespace FontShuffle
             }
         }
 
-        private void InitializeFontGroups()
+        private void UpdateFontGroups()
         {
             try
             {
-                FontGroups.Add(new FontGroup { Name = "すべて", Type = FontGroupType.All });
-                FontGroups.Add(new FontGroup { Name = "日本語フォント", Type = FontGroupType.Japanese });
-                FontGroups.Add(new FontGroup { Name = "英数字フォント", Type = FontGroupType.English });
-                FontGroupComboBox.SelectedIndex = 0;
-                LogManager.WriteLog("フォントグループが初期化されました");
+                if (_isDisposed) return;
+
+                DisplayFontGroups.Clear();
+                DisplayFontGroups.Add(new FontGroup { Name = "すべて", Type = FontGroupType.All });
+                DisplayFontGroups.Add(new FontGroup { Name = "日本語フォント", Type = FontGroupType.Japanese });
+                DisplayFontGroups.Add(new FontGroup { Name = "英数字フォント", Type = FontGroupType.English });
+
+                foreach (var group in FontShuffleEffect.GlobalFontGroups)
+                {
+                    DisplayFontGroups.Add(group);
+                }
+
+                if (FontGroupComboBox.SelectedIndex < 0)
+                {
+                    FontGroupComboBox.SelectedIndex = 0;
+                }
+
+                LogManager.WriteLog("フォントグループが更新されました");
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "フォントグループ初期化");
+                LogManager.WriteException(ex, "フォントグループ更新");
             }
         }
 
@@ -147,7 +165,7 @@ namespace FontShuffle
                                 Effect.FontCustomSettings.Remove(selectedFont.Name);
                             }
 
-                            foreach (var font in allFonts)
+                            foreach (var font in _allFonts)
                             {
                                 font.UpdateCustomSettingsCache(Effect.FontCustomSettings);
                             }
@@ -175,9 +193,10 @@ namespace FontShuffle
                     BeginEdit?.Invoke(this, EventArgs.Empty);
 
                     selectedFont.IsHidden = true;
-                    if (!Effect.HiddenFonts.Contains(selectedFont.Name))
+                    if (!FontShuffleEffect.GlobalHiddenFonts.Contains(selectedFont.Name))
                     {
-                        Effect.HiddenFonts.Add(selectedFont.Name);
+                        FontShuffleEffect.GlobalHiddenFonts.Add(selectedFont.Name);
+                        FontShuffleEffect.SaveGlobalSettings();
                     }
 
                     selectedFont.IsSelected = false;
@@ -197,15 +216,39 @@ namespace FontShuffle
             }
         }
 
-        void UserControl_Loaded(object sender, RoutedEventArgs e)
+        private async void UserControl_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (allFonts.Count == 0)
+                if (_isLoaded || _isDisposed) return;
+                _isLoaded = true;
+
+                if (_allFonts.Count == 0)
                 {
-                    LoadSystemFonts();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await LoadSystemFontsAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            LogManager.WriteException(ex, "フォント読み込み非同期処理");
+                        }
+                    });
                 }
-                CheckForUpdatesAsync();
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await CheckForUpdatesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.WriteException(ex, "更新チェック非同期処理");
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -213,63 +256,87 @@ namespace FontShuffle
             }
         }
 
-        async void CheckForUpdatesAsync()
+        private async Task CheckForUpdatesAsync()
         {
-            IsUpToDate = true;
-            IsUpdateAvailable = false;
-            NewUpdateAfterIgnore = false;
+            if (_isDisposed) return;
 
             try
             {
-                CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.3";
+                await Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    IsUpToDate = true;
+                    IsUpdateAvailable = false;
+                    NewUpdateAfterIgnore = false;
+                }));
+
+                CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
                 string url = "https://api.github.com/repos/routersys/YMM4-ShuffleFont/releases/latest";
 
                 using var client = new HttpClient();
                 client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("YMM4-ShuffleFont", CurrentVersion));
+                client.Timeout = TimeSpan.FromSeconds(10);
 
                 var response = await client.GetStringAsync(url);
                 var release = JsonSerializer.Deserialize<GitHubRelease>(response);
 
                 if (release != null && !string.IsNullOrEmpty(release.tag_name))
                 {
-                    LatestVersion = release.tag_name.TrimStart('v');
-                    ReleasePageUrl = release.html_url;
-
-                    var currentVer = new Version(CurrentVersion);
-                    var latestVer = new Version(LatestVersion);
-
-                    if (latestVer > currentVer)
+                    FontShuffleEffect? currentEffect = null;
+                    await Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        if (Effect != null && Effect.IgnoredVersion == LatestVersion)
+                        if (_isDisposed) return;
+                        currentEffect = Effect;
+                    }));
+
+                    await Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (_isDisposed) return;
+
+                        LatestVersion = release.tag_name.TrimStart('v');
+                        ReleasePageUrl = release.html_url;
+
+                        if (Version.TryParse(CurrentVersion, out var currentVer) && Version.TryParse(LatestVersion, out var latestVer))
                         {
-                            IsUpToDate = true;
-                        }
-                        else
-                        {
-                            if (Effect != null && !string.IsNullOrEmpty(Effect.IgnoredVersion))
+                            if (latestVer > currentVer)
                             {
-                                NewUpdateAfterIgnore = true;
+                                if (currentEffect != null && currentEffect.IgnoredVersion == LatestVersion)
+                                {
+                                    IsUpToDate = true;
+                                }
+                                else
+                                {
+                                    if (currentEffect != null && !string.IsNullOrEmpty(currentEffect.IgnoredVersion))
+                                    {
+                                        NewUpdateAfterIgnore = true;
+                                    }
+                                    else
+                                    {
+                                        IsUpdateAvailable = true;
+                                    }
+                                    IsUpToDate = false;
+                                }
                             }
                             else
                             {
-                                IsUpdateAvailable = true;
+                                IsUpToDate = true;
                             }
-                            IsUpToDate = false;
                         }
-                    }
-                    else
-                    {
-                        IsUpToDate = true;
-                    }
+                    }));
                 }
                 LogManager.WriteLog($"更新チェック完了（現在: {CurrentVersion}, 最新: {LatestVersion}）");
             }
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "更新チェック");
-                IsUpToDate = true;
-                IsUpdateAvailable = false;
-                NewUpdateAfterIgnore = false;
+                if (!_isDisposed)
+                {
+                    await Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        IsUpToDate = true;
+                        IsUpdateAvailable = false;
+                        NewUpdateAfterIgnore = false;
+                    }));
+                }
             }
         }
 
@@ -322,39 +389,39 @@ namespace FontShuffle
             {
                 var settingsWindow = new FontSettingsWindow();
                 settingsWindow.Owner = Window.GetWindow(this);
-                settingsWindow.SetFonts(allFonts.Where(f => f.IsSelected), Effect?.FontCustomSettings ?? new Dictionary<string, FontCustomSettings>());
-                settingsWindow.SetFontGroups(FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList());
-                settingsWindow.SetHiddenFonts(allFonts.Where(f => f.IsHidden).ToList());
+                settingsWindow.SetFonts(_allFonts.Where(f => f.IsSelected), Effect?.FontCustomSettings ?? new Dictionary<string, FontCustomSettings>());
+                settingsWindow.SetFontGroups(FontShuffleEffect.GlobalFontGroups);
+                settingsWindow.SetHiddenFonts(_allFonts.Where(f => f.IsHidden).ToList());
 
                 if (settingsWindow.ShowDialog() == true)
                 {
                     if (Effect != null)
                     {
                         BeginEdit?.Invoke(this, EventArgs.Empty);
+
                         Effect.FontCustomSettings = settingsWindow.GetUpdatedSettings();
 
                         var updatedGroups = settingsWindow.GetUpdatedGroups();
-                        var customGroups = FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList();
-                        foreach (var group in customGroups)
-                        {
-                            FontGroups.Remove(group);
-                        }
-                        foreach (var group in updatedGroups)
-                        {
-                            FontGroups.Add(group);
-                        }
+                        FontShuffleEffect.GlobalFontGroups.Clear();
+                        updatedGroups.ForEach(g => FontShuffleEffect.GlobalFontGroups.Add(g));
 
                         var updatedHiddenFonts = settingsWindow.GetUpdatedHiddenFonts();
-                        Effect.HiddenFonts = updatedHiddenFonts.Select(f => f.Name).ToList();
-                        foreach (var font in allFonts)
+                        FontShuffleEffect.GlobalHiddenFonts.Clear();
+                        updatedHiddenFonts.Select(f => f.Name).ToList().ForEach(name => FontShuffleEffect.GlobalHiddenFonts.Add(name));
+
+                        FontShuffleEffect.SaveGlobalSettings();
+
+                        UpdateFontGroups();
+
+                        foreach (var font in _allFonts)
                         {
-                            font.IsHidden = Effect.HiddenFonts.Contains(font.Name);
+                            font.IsHidden = FontShuffleEffect.GlobalHiddenFonts.Contains(font.Name);
                             font.UpdateCustomSettingsCache(Effect.FontCustomSettings);
                         }
 
                         EndEdit?.Invoke(this, EventArgs.Empty);
 
-                        foreach (var font in allFonts)
+                        foreach (var font in _allFonts)
                         {
                             font.OnPropertyChanged(nameof(FontItem.Name));
                         }
@@ -373,7 +440,8 @@ namespace FontShuffle
         {
             try
             {
-                CreateFontIndexAsync();
+                FontIndexer.ClearIndex();
+                _ = Task.Run(CreateFontIndexAsync);
             }
             catch (Exception ex)
             {
@@ -381,48 +449,103 @@ namespace FontShuffle
             }
         }
 
-        private async void CreateFontIndexAsync()
+        private async Task CreateFontIndexAsync()
         {
-            var progressDialog = new FontIndexProgressDialog
-            {
-                Owner = Window.GetWindow(this)
-            };
+            _indexCreationCancellationTokenSource?.Cancel();
+            _indexCreationCancellationTokenSource?.Dispose();
+            _indexCreationCancellationTokenSource = new CancellationTokenSource();
 
-            var progress = new Progress<FontIndexProgress>(progressInfo =>
-            {
-                progressDialog.UpdateProgress(progressInfo);
-            });
+            FontIndexProgressDialog? progressDialog = null;
 
             try
             {
                 LogManager.WriteLog("フォントインデックス作成を開始します");
 
-                var createIndexTask = FontIndexer.CreateIndexAsync(progress);
-                progressDialog.Show();
+                await Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_isDisposed) return;
 
+                    progressDialog = new FontIndexProgressDialog
+                    {
+                        Owner = Window.GetWindow(this)
+                    };
+                    progressDialog.Show();
+                }));
+
+                if (progressDialog == null) return;
+
+                var progress = new Progress<FontIndexProgress>(progressInfo =>
+                {
+                    try
+                    {
+                        if (!_isDisposed && progressDialog != null)
+                        {
+                            progressDialog.UpdateProgress(progressInfo);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogManager.WriteException(ex, "進行状況更新");
+                    }
+                });
+
+                var createIndexTask = FontIndexer.CreateIndexAsync(progress, progressDialog.CancellationToken);
                 await createIndexTask;
 
-                if (progressDialog.WasCanceled)
+                if (progressDialog.WasCanceled || _indexCreationCancellationTokenSource.Token.IsCancellationRequested)
                 {
                     LogManager.WriteLog("フォントインデックス作成がキャンセルされました");
                 }
                 else
                 {
                     LogManager.WriteLog("フォントインデックス作成が完了しました");
-                    LoadSystemFonts();
+
+                    if (!_isDisposed)
+                    {
+                        await Dispatcher.BeginInvoke(new Action(async () => {
+                            try
+                            {
+                                if (!_isDisposed)
+                                {
+                                    await LoadSystemFontsAsync();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                LogManager.WriteException(ex, "フォント再読み込み");
+                            }
+                        }));
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                LogManager.WriteLog("フォントインデックス作成がキャンセルされました");
             }
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "フォントインデックス作成");
-                MessageBox.Show("フォントインデックスの作成中にエラーが発生しました。", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                if (!_isDisposed)
+                {
+                    await Dispatcher.BeginInvoke(new Action(() => {
+                        MessageBox.Show("フォントインデックスの作成中にエラーが発生しました。\n詳細はログファイルを確認してください。",
+                            "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }));
+                }
             }
             finally
             {
-                if (progressDialog.IsVisible)
+                if (progressDialog?.IsVisible == true)
                 {
-                    progressDialog.Close();
+                    await Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        progressDialog?.Close();
+                    }));
                 }
+
+                _indexCreationCancellationTokenSource?.Dispose();
+                _indexCreationCancellationTokenSource = null;
             }
         }
 
@@ -445,10 +568,10 @@ namespace FontShuffle
         {
             try
             {
-                isUpdatingUI = true;
+                _isUpdatingUI = true;
                 BeginEdit?.Invoke(this, EventArgs.Empty);
 
-                foreach (var font in allFonts)
+                foreach (var font in _allFonts)
                 {
                     if (font.IsHidden) continue;
 
@@ -457,19 +580,19 @@ namespace FontShuffle
                         FontGroupType.All => false,
                         FontGroupType.Japanese => font.IsJapanese,
                         FontGroupType.English => !font.IsJapanese,
-                        FontGroupType.Custom => group.FontNames.Contains(font.Name),
+                        FontGroupType.Custom => group.FontNames?.Contains(font.Name) == true,
                         _ => false
                     };
 
                     if (shouldSelect && !font.IsSelected)
                     {
                         font.IsSelected = true;
-                        if (!OrderedFontNames.Contains(font.Name))
+                        if (!string.IsNullOrWhiteSpace(font.Name) && !OrderedFontNames.Contains(font.Name))
                             OrderedFontNames.Add(font.Name);
                     }
                 }
 
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
                 EndEdit?.Invoke(this, EventArgs.Empty);
                 UpdateEffectLists();
                 LogManager.WriteLog($"フォントグループ「{group.Name}」を適用しました");
@@ -477,7 +600,7 @@ namespace FontShuffle
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "フォントグループフィルタ適用");
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
             }
         }
 
@@ -485,7 +608,9 @@ namespace FontShuffle
         {
             try
             {
-                var selectedFonts = allFonts.Where(f => f.IsSelected && !f.IsHidden).Select(f => f.Name).ToList();
+                if (Effect == null) return;
+
+                var selectedFonts = _allFonts.Where(f => f.IsSelected && !f.IsHidden).Select(f => f.Name).ToList();
                 if (selectedFonts.Count == 0)
                 {
                     MessageBox.Show("グループを作成するにはフォントを選択してください。", "グループ作成", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -506,7 +631,13 @@ namespace FontShuffle
                         Type = FontGroupType.Custom,
                         FontNames = new List<string>(selectedFonts)
                     };
-                    FontGroups.Add(newGroup);
+
+                    BeginEdit?.Invoke(this, EventArgs.Empty);
+                    FontShuffleEffect.GlobalFontGroups.Add(newGroup);
+                    FontShuffleEffect.SaveGlobalSettings();
+                    EndEdit?.Invoke(this, EventArgs.Empty);
+
+                    UpdateFontGroups();
                     FontGroupComboBox.SelectedItem = newGroup;
                     LogManager.WriteLog($"フォントグループ「{inputDialog.Value}」を作成しました（{selectedFonts.Count}フォント）");
                 }
@@ -521,22 +652,22 @@ namespace FontShuffle
         {
             try
             {
+                if (Effect == null) return;
+
                 var groupManager = new FontGroupManagerWindow();
                 groupManager.Owner = Window.GetWindow(this);
-                groupManager.SetGroups(FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList());
+                groupManager.SetGroups(FontShuffleEffect.GlobalFontGroups);
 
                 if (groupManager.ShowDialog() == true)
                 {
-                    var customGroups = FontGroups.Where(g => g.Type == FontGroupType.Custom).ToList();
-                    foreach (var group in customGroups)
-                    {
-                        FontGroups.Remove(group);
-                    }
+                    BeginEdit?.Invoke(this, EventArgs.Empty);
+                    var updatedGroups = groupManager.GetUpdatedGroups();
+                    FontShuffleEffect.GlobalFontGroups.Clear();
+                    updatedGroups.ForEach(g => FontShuffleEffect.GlobalFontGroups.Add(g));
+                    FontShuffleEffect.SaveGlobalSettings();
+                    EndEdit?.Invoke(this, EventArgs.Empty);
 
-                    foreach (var group in groupManager.GetUpdatedGroups())
-                    {
-                        FontGroups.Add(group);
-                    }
+                    UpdateFontGroups();
                     LogManager.WriteLog("フォントグループ管理を更新しました");
                 }
             }
@@ -550,20 +681,44 @@ namespace FontShuffle
         {
         }
 
-        void LoadSystemFonts()
+        private async Task LoadSystemFontsAsync()
         {
+            if (_isDisposed) return;
+
             try
             {
-                LoadingText.Visibility = Visibility.Visible;
-                FontListView.Visibility = Visibility.Hidden;
+                await _fontLoadingSemaphore.WaitAsync();
 
-                var effectReference = Effect;
-                var hiddenFonts = effectReference?.HiddenFonts?.ToList() ?? new List<string>();
+                if (_isDisposed) return;
 
-                Task.Run(() =>
+                FontShuffleEffect? effectReference = null;
+                List<string> hiddenFonts = new List<string>();
+                Dictionary<string, FontCustomSettings>? customSettings = null;
+
+                await Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_isDisposed) return;
+
+                    LoadingText.Visibility = Visibility.Visible;
+                    FontListView.Visibility = Visibility.Hidden;
+
+                    effectReference = Effect;
+                    hiddenFonts = FontShuffleEffect.GlobalHiddenFonts.ToList();
+                    customSettings = effectReference?.FontCustomSettings;
+                }));
+
+                var fonts = await Task.Run(() =>
                 {
                     try
                     {
+                        if (_isDisposed) return new List<FontItem>();
+
+                        if (FontIndexer.ShouldRecreateIndex())
+                        {
+                            LogManager.WriteLog("インデックスの再作成が必要です");
+                            return LoadBasicFonts(hiddenFonts);
+                        }
+
                         var fontIndex = FontIndexer.LoadIndex();
                         if (fontIndex == null)
                         {
@@ -572,62 +727,75 @@ namespace FontShuffle
                         }
 
                         LogManager.WriteLog($"インデックスからフォントを読み込み中（{fontIndex.AllFonts.Count}フォント）");
-                        var fonts = new List<FontItem>();
-                        var hiddenSet = new HashSet<string>(hiddenFonts);
+                        var fontList = new List<FontItem>();
+                        var hiddenSet = new HashSet<string>(hiddenFonts, StringComparer.OrdinalIgnoreCase);
 
                         foreach (var fontName in fontIndex.AllFonts)
                         {
-                            var font = new FontItem
+                            if (_isDisposed) break;
+                            if (string.IsNullOrEmpty(fontName)) continue;
+
+                            var font = new FontItem(this)
                             {
                                 Name = fontName,
                                 IsJapanese = fontIndex.FontSupportMap.ContainsKey(fontName) ? fontIndex.FontSupportMap[fontName] : false,
                                 IsHidden = hiddenSet.Contains(fontName)
                             };
-                            fonts.Add(font);
+                            fontList.Add(font);
                         }
 
-                        return fonts;
+                        return fontList;
                     }
                     catch (Exception ex)
                     {
                         LogManager.WriteException(ex, "フォント読み込みタスク");
                         return LoadBasicFonts(hiddenFonts);
                     }
-                }).ContinueWith(task =>
-                {
-                    try
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            foreach (var font in allFonts)
-                            {
-                                font.PropertyChanged -= FontItem_PropertyChanged;
-                            }
-                            allFonts.Clear();
-                            OrderedFontNames.Clear();
+                });
 
-                            foreach (var font in task.Result)
-                            {
-                                font.PropertyChanged += FontItem_PropertyChanged;
-                                font.UpdateCustomSettingsCache(effectReference?.FontCustomSettings);
-                                allFonts.Add(font);
-                            }
-                            UpdateFromEffect();
-                            LoadingText.Visibility = Visibility.Collapsed;
-                            FontListView.Visibility = Visibility.Visible;
-                            UpdateCounts();
-                            LogManager.WriteLog($"フォント読み込み完了（{allFonts.Count}フォント）");
-                        });
-                    }
-                    catch (Exception ex)
+                if (_isDisposed) return;
+
+                await Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_isDisposed) return;
+
+                    foreach (var font in _allFonts)
                     {
-                        LogManager.WriteException(ex, "フォント読み込み完了処理");
+                        font.PropertyChanged -= FontItem_PropertyChanged;
                     }
-                }, TaskScheduler.FromCurrentSynchronizationContext());
+                    _allFonts.Clear();
+                    OrderedFontNames.Clear();
+
+                    foreach (var font in fonts)
+                    {
+                        font.PropertyChanged += FontItem_PropertyChanged;
+                        font.UpdateCustomSettingsCache(customSettings);
+                        _allFonts.Add(font);
+                    }
+
+                    UpdateFromEffect();
+                    LoadingText.Visibility = Visibility.Collapsed;
+                    FontListView.Visibility = Visibility.Visible;
+                    UpdateCounts();
+                }));
+
+                LogManager.WriteLog($"フォント読み込み完了（{_allFonts.Count}フォント）");
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "LoadSystemFonts");
+                LogManager.WriteException(ex, "LoadSystemFontsAsync");
+                if (!_isDisposed)
+                {
+                    await Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        LoadingText.Visibility = Visibility.Collapsed;
+                        FontListView.Visibility = Visibility.Visible;
+                    }));
+                }
+            }
+            finally
+            {
+                _fontLoadingSemaphore.Release();
             }
         }
 
@@ -635,21 +803,25 @@ namespace FontShuffle
         {
             try
             {
-                var fontSet = new HashSet<string>();
+                var fontSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var fonts = new List<FontItem>();
-                var hiddenSet = new HashSet<string>(hiddenFonts);
+                var hiddenSet = new HashSet<string>(hiddenFonts, StringComparer.OrdinalIgnoreCase);
 
-                foreach (var fontFamily in Fonts.SystemFontFamilies)
+                var systemFonts = System.Windows.Media.Fonts.SystemFontFamilies.ToArray();
+
+                foreach (var fontFamily in systemFonts)
                 {
+                    if (_isDisposed) break;
+
                     try
                     {
-                        string fontName = GetFontFamilyName(fontFamily);
+                        string fontName = FontHelper.GetFontFamilyName(fontFamily);
                         if (!string.IsNullOrEmpty(fontName) && fontSet.Add(fontName))
                         {
-                            fonts.Add(new FontItem
+                            fonts.Add(new FontItem(this)
                             {
                                 Name = fontName,
-                                IsJapanese = IsJapaneseFontBasic(fontName),
+                                IsJapanese = FontHelper.IsJapaneseFontUnified(fontFamily, fontName),
                                 IsHidden = hiddenSet.Contains(fontName)
                             });
                         }
@@ -670,9 +842,9 @@ namespace FontShuffle
             }
         }
 
-        void FontItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private void FontItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (isUpdatingUI) return;
+            if (_isUpdatingUI || _isDisposed) return;
 
             try
             {
@@ -682,7 +854,7 @@ namespace FontShuffle
                     {
                         if (font.IsSelected)
                         {
-                            if (!OrderedFontNames.Contains(font.Name))
+                            if (!string.IsNullOrWhiteSpace(font.Name) && !OrderedFontNames.Contains(font.Name))
                                 OrderedFontNames.Add(font.Name);
                         }
                         else
@@ -703,16 +875,16 @@ namespace FontShuffle
             }
         }
 
-        void UpdateEffectLists()
+        private void UpdateEffectLists()
         {
-            if (Effect == null || isUpdatingUI) return;
+            if (Effect == null || _isUpdatingUI || _isDisposed) return;
 
             try
             {
                 BeginEdit?.Invoke(this, EventArgs.Empty);
-                Effect.SelectedFonts = allFonts.Where(f => f.IsSelected && !f.IsHidden).Select(f => f.Name).ToList();
-                Effect.FavoriteFonts = allFonts.Where(f => f.IsFavorite && !f.IsHidden).Select(f => f.Name).ToList();
-                Effect.OrderedFonts = new List<string>(OrderedFontNames.Where(name => !Effect.HiddenFonts.Contains(name)));
+                Effect.SelectedFonts = _allFonts.Where(f => f.IsSelected && !f.IsHidden && !string.IsNullOrWhiteSpace(f.Name)).Select(f => f.Name).ToList();
+                Effect.FavoriteFonts = _allFonts.Where(f => f.IsFavorite && !f.IsHidden && !string.IsNullOrWhiteSpace(f.Name)).Select(f => f.Name).ToList();
+                Effect.OrderedFonts = OrderedFontNames.Where(name => !string.IsNullOrWhiteSpace(name) && !FontShuffleEffect.GlobalHiddenFonts.Contains(name)).ToList();
                 EndEdit?.Invoke(this, EventArgs.Empty);
                 UpdateCounts();
             }
@@ -722,11 +894,13 @@ namespace FontShuffle
             }
         }
 
-        void ApplyFilter()
+        private void ApplyFilter()
         {
+            if (_isDisposed) return;
+
             try
             {
-                filteredFontsView.Filter = obj =>
+                _filteredFontsView.Filter = obj =>
                 {
                     if (obj is not FontItem font) return false;
 
@@ -737,7 +911,7 @@ namespace FontShuffle
 
                     return searchMatch && selectedMatch && favoriteMatch && hiddenMatch;
                 };
-                filteredFontsView.Refresh();
+                _filteredFontsView.Refresh();
             }
             catch (Exception ex)
             {
@@ -745,11 +919,13 @@ namespace FontShuffle
             }
         }
 
-        void UpdateCounts()
+        private void UpdateCounts()
         {
+            if (_isDisposed) return;
+
             try
             {
-                var visibleFonts = allFonts.Where(f => !f.IsHidden);
+                var visibleFonts = _allFonts.Where(f => !f.IsHidden);
                 TotalCountText.Text = visibleFonts.Count().ToString();
                 SelectedCountText.Text = visibleFonts.Count(f => f.IsSelected).ToString();
                 FavoriteCountText.Text = visibleFonts.Count(f => f.IsFavorite).ToString();
@@ -760,11 +936,11 @@ namespace FontShuffle
             }
         }
 
-        static void OnEffectChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnEffectChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             try
             {
-                if (d is FontShuffleControl control)
+                if (d is FontShuffleControl control && !control._isDisposed)
                 {
                     control.UpdateFromEffect();
                 }
@@ -775,19 +951,21 @@ namespace FontShuffle
             }
         }
 
-        void UpdateFromEffect()
+        private void UpdateFromEffect()
         {
-            if (Effect == null || allFonts.Count == 0) return;
+            if (Effect == null || _allFonts.Count == 0 || _isDisposed) return;
 
             try
             {
-                isUpdatingUI = true;
+                _isUpdatingUI = true;
 
-                var selectedSet = new HashSet<string>(Effect.SelectedFonts);
-                var favoriteSet = new HashSet<string>(Effect.FavoriteFonts);
-                var hiddenSet = new HashSet<string>(Effect.HiddenFonts);
+                UpdateFontGroups();
 
-                foreach (var font in allFonts)
+                var selectedSet = new HashSet<string>(Effect.SelectedFonts ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+                var favoriteSet = new HashSet<string>(Effect.FavoriteFonts ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+                var hiddenSet = new HashSet<string>(FontShuffleEffect.GlobalHiddenFonts ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var font in _allFonts)
                 {
                     font.UpdateCustomSettingsCache(Effect.FontCustomSettings);
                     font.IsSelected = selectedSet.Contains(font.Name);
@@ -800,7 +978,7 @@ namespace FontShuffle
                 {
                     foreach (var name in Effect.OrderedFonts)
                     {
-                        if (selectedSet.Contains(name) && !hiddenSet.Contains(name))
+                        if (!string.IsNullOrWhiteSpace(name) && selectedSet.Contains(name) && !hiddenSet.Contains(name))
                         {
                             OrderedFontNames.Add(name);
                         }
@@ -808,31 +986,31 @@ namespace FontShuffle
                 }
                 else
                 {
-                    foreach (var name in Effect.SelectedFonts)
+                    foreach (var name in Effect.SelectedFonts ?? new List<string>())
                     {
-                        if (!OrderedFontNames.Contains(name) && !hiddenSet.Contains(name))
+                        if (!string.IsNullOrWhiteSpace(name) && !OrderedFontNames.Contains(name) && !hiddenSet.Contains(name))
                         {
                             OrderedFontNames.Add(name);
                         }
                     }
                 }
 
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
                 UpdateCounts();
                 ApplyFilter();
             }
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "エフェクトからの更新");
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
             }
         }
 
-        void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
             {
-                SearchText = SearchTextBox.Text;
+                SearchText = SearchTextBox.Text ?? "";
                 OnPropertyChanged(nameof(IsSearchEmpty));
                 ApplyFilter();
             }
@@ -842,7 +1020,7 @@ namespace FontShuffle
             }
         }
 
-        void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
+        private void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -854,39 +1032,39 @@ namespace FontShuffle
             }
         }
 
-        void SelectAllButton_Click(object sender, RoutedEventArgs e)
+        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                isUpdatingUI = true;
+                _isUpdatingUI = true;
                 BeginEdit?.Invoke(this, EventArgs.Empty);
-                foreach (FontItem font in filteredFontsView)
+                foreach (FontItem font in _filteredFontsView)
                 {
                     if (!font.IsHidden)
                     {
                         font.IsSelected = true;
-                        if (!OrderedFontNames.Contains(font.Name))
+                        if (!string.IsNullOrWhiteSpace(font.Name) && !OrderedFontNames.Contains(font.Name))
                             OrderedFontNames.Add(font.Name);
                     }
                 }
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
                 EndEdit?.Invoke(this, EventArgs.Empty);
                 UpdateEffectLists();
             }
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "全選択");
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
             }
         }
 
-        void DeselectAllButton_Click(object sender, RoutedEventArgs e)
+        private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                isUpdatingUI = true;
+                _isUpdatingUI = true;
                 BeginEdit?.Invoke(this, EventArgs.Empty);
-                foreach (FontItem font in filteredFontsView)
+                foreach (FontItem font in _filteredFontsView)
                 {
                     font.IsSelected = false;
                     OrderedFontNames.Remove(font.Name);
@@ -894,18 +1072,18 @@ namespace FontShuffle
 
                 FontGroupComboBox.SelectedIndex = 0;
 
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
                 EndEdit?.Invoke(this, EventArgs.Empty);
                 UpdateEffectLists();
             }
             catch (Exception ex)
             {
                 LogManager.WriteException(ex, "全解除");
-                isUpdatingUI = false;
+                _isUpdatingUI = false;
             }
         }
 
-        void FavoriteButton_Click(object sender, RoutedEventArgs e)
+        private void FavoriteButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -920,8 +1098,26 @@ namespace FontShuffle
             }
         }
 
-        void UserControl_Unloaded(object sender, RoutedEventArgs e)
+        private void UserControl_Unloaded(object sender, RoutedEventArgs e)
         {
+            try
+            {
+                _isDisposed = true;
+
+                _indexCreationCancellationTokenSource?.Cancel();
+                _indexCreationCancellationTokenSource?.Dispose();
+                _indexCreationCancellationTokenSource = null;
+                _fontLoadingSemaphore?.Dispose();
+
+                foreach (var font in _allFonts)
+                {
+                    font.PropertyChanged -= FontItem_PropertyChanged;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.WriteException(ex, "UserControl_Unloaded");
+            }
         }
 
         protected virtual void OnPropertyChanged(string propertyName)
@@ -929,38 +1125,7 @@ namespace FontShuffle
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        static string GetFontFamilyName(FontFamily fontFamily)
-        {
-            try
-            {
-                if (fontFamily.FamilyNames.Count > 0)
-                {
-                    return fontFamily.FamilyNames.Values.First();
-                }
-                return fontFamily.Source ?? "Unknown Font";
-            }
-            catch (Exception ex)
-            {
-                LogManager.WriteException(ex, "フォント名取得");
-                return "Unknown Font";
-            }
-        }
-
-        static bool IsJapaneseFontBasic(string fontName)
-        {
-            try
-            {
-                var japaneseKeywords = new[] { "Gothic", "Mincho", "游", "Yu", "MS", "メイリオ", "Meiryo", "UD", "游ゴシック", "游明朝", "ヒラギノ", "小塚", "源ノ角", "Noto" };
-                return japaneseKeywords.Any(keyword => fontName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-            }
-            catch (Exception ex)
-            {
-                LogManager.WriteException(ex, $"日本語フォント判定（{fontName}）");
-                return false;
-            }
-        }
-
-        Point? dragStartPoint;
+        private Point? dragStartPoint;
         private void OrderListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             dragStartPoint = e.GetPosition(null);
@@ -1010,7 +1175,14 @@ namespace FontShuffle
 
                             Dispatcher.BeginInvoke(new Action(() =>
                             {
-                                OrderListBox.Items.Refresh();
+                                try
+                                {
+                                    OrderListBox.Items.Refresh();
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogManager.WriteException(ex, "リストボックス更新");
+                                }
                             }), System.Windows.Threading.DispatcherPriority.Render);
 
                             UpdateEffectLists();

@@ -162,6 +162,15 @@
                                                 x:Name="CustomSettingsPanel" 
                                                 Visibility="Collapsed">
 
+                                        <CheckBox Grid.Row="0"
+                                                  x:Name="IsProjectSpecificCheckBox"
+                                                  Content="このプロジェクトでのみ有効"
+                                                  Style="{StaticResource ModernCheckBoxStyle}"
+                                                  Margin="0,0,0,12"
+                                                  Checked="IsProjectSpecificCheckBox_Changed"
+                                                  Unchecked="IsProjectSpecificCheckBox_Changed"
+                                                  ToolTip="オフにすると、この設定が他のプロジェクトでもグローバルに適用されます。"/>
+
                                         <Grid Margin="0,0,0,12">
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
@@ -223,11 +232,11 @@
 
                                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="8,0">
                                                 <Border x:Name="ColorPreviewBorder" 
-                                                       Width="30" 
-                                                       Height="20" 
-                                                       BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
-                                                       BorderThickness="1" 
-                                                       Margin="0,0,8,0">
+                                                        Width="30" 
+                                                        Height="20" 
+                                                        BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                                                        BorderThickness="1" 
+                                                        Margin="0,0,8,0">
                                                     <Border.Background>
                                                         <SolidColorBrush x:Name="ColorPreviewBrush" Color="White"/>
                                                     </Border.Background>
@@ -428,6 +437,12 @@
                                              Background="Transparent" 
                                              BorderThickness="0" 
                                              Margin="12,0,12,12">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                <Setter Property="Padding" Value="0"/>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid>
@@ -445,7 +460,8 @@
                                                             Click="RemoveFontFromGroupButton_Click" 
                                                             Style="{StaticResource ModernButtonStyle}" 
                                                             FontSize="10" 
-                                                            Padding="4,2"/>
+                                                            Padding="4,2"
+                                                            HorizontalAlignment="Right"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
@@ -487,6 +503,12 @@
                                      Background="Transparent" 
                                      BorderThickness="0" 
                                      Margin="8">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="4">
@@ -504,7 +526,8 @@
                                                     Content="表示に戻す" 
                                                     Click="RestoreFontButton_Click" 
                                                     Style="{StaticResource ModernButtonStyle}" 
-                                                    Padding="8,2"/>
+                                                    Padding="8,2"
+                                                    HorizontalAlignment="Right"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

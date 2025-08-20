@@ -5,6 +5,11 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Threading;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace FontShuffle
 {
@@ -13,7 +18,7 @@ namespace FontShuffle
         public string Value { get; set; } = "";
         public string Message { get; set; } = "";
 
-        private TextBox textBox;
+        private TextBox textBox = null!;
 
         public InputDialog()
         {
@@ -34,6 +39,7 @@ namespace FontShuffle
                 var messageLabel = new TextBlock();
                 messageLabel.SetBinding(TextBlock.TextProperty, new Binding("Message") { Source = this });
                 messageLabel.Margin = new Thickness(0, 0, 0, 12);
+                messageLabel.TextWrapping = TextWrapping.Wrap;
                 Grid.SetRow(messageLabel, 0);
                 grid.Children.Add(messageLabel);
 
@@ -47,7 +53,7 @@ namespace FontShuffle
                 var okButton = new Button { Content = "OK", Width = 70, Height = 24, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
                 var cancelButton = new Button { Content = "キャンセル", Width = 70, Height = 24, IsCancel = true };
 
-                okButton.Click += (s, e) => { Value = textBox.Text; DialogResult = true; Close(); };
+                okButton.Click += (s, e) => { Value = textBox.Text ?? ""; DialogResult = true; Close(); };
                 cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
 
                 buttonPanel.Children.Add(okButton);
@@ -58,12 +64,22 @@ namespace FontShuffle
 
                 Content = grid;
 
-                Loaded += (s, e) => textBox.Focus();
-                LogManager.WriteLog("入力ダイアログが初期化されました");
+                Loaded += (s, e) => {
+                    try
+                    {
+                        textBox.Focus();
+                        textBox.SelectAll();
+                    }
+                    catch (Exception ex)
+                    {
+                        _ = Task.Run(() => LogManager.WriteException(ex, "InputDialog フォーカス設定"));
+                    }
+                };
+                _ = Task.Run(() => LogManager.WriteLog("入力ダイアログが初期化されました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "InputDialog初期化");
+                _ = Task.Run(() => LogManager.WriteException(ex, "InputDialog初期化"));
             }
         }
     }
@@ -71,7 +87,7 @@ namespace FontShuffle
     public class FontGroupManagerWindow : Window
     {
         private ObservableCollection<FontGroup> groups = new();
-        private ListBox groupListBox;
+        private ListBox groupListBox = null!;
 
         public FontGroupManagerWindow()
         {
@@ -102,13 +118,24 @@ namespace FontShuffle
                     {
                         if (groupListBox.SelectedItem is FontGroup selected)
                         {
-                            groups.Remove(selected);
-                            LogManager.WriteLog($"グループ「{selected.Name}」を削除しました");
+                            var result = MessageBox.Show($"グループ「{selected.Name}」を削除しますか？",
+                                "グループ削除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                            if (result == MessageBoxResult.Yes)
+                            {
+                                groups.Remove(selected);
+                                _ = Task.Run(() => LogManager.WriteLog($"グループ「{selected.Name}」を削除しました"));
+                            }
+                        }
+                        else
+                        {
+                            MessageBox.Show("削除するグループを選択してください。", "グループ削除", MessageBoxButton.OK, MessageBoxImage.Information);
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogManager.WriteException(ex, "グループ削除");
+                        _ = Task.Run(() => LogManager.WriteException(ex, "グループ削除"));
+                        MessageBox.Show("グループの削除中にエラーが発生しました。", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 };
                 okButton.Click += (s, e) => { DialogResult = true; Close(); };
@@ -122,11 +149,11 @@ namespace FontShuffle
                 grid.Children.Add(buttonPanel);
 
                 Content = grid;
-                LogManager.WriteLog("グループ管理ダイアログが初期化されました");
+                _ = Task.Run(() => LogManager.WriteLog("グループ管理ダイアログが初期化されました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontGroupManagerWindow初期化");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontGroupManagerWindow初期化"));
             }
         }
 
@@ -135,15 +162,15 @@ namespace FontShuffle
             try
             {
                 groups.Clear();
-                foreach (var group in fontGroups)
+                foreach (var group in fontGroups ?? new List<FontGroup>())
                 {
                     groups.Add(group);
                 }
-                LogManager.WriteLog($"グループ管理に{fontGroups.Count}個のグループを設定しました");
+                _ = Task.Run(() => LogManager.WriteLog($"グループ管理に{fontGroups?.Count ?? 0}個のグループを設定しました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "グループ設定");
+                _ = Task.Run(() => LogManager.WriteException(ex, "グループ設定"));
             }
         }
 
@@ -152,12 +179,12 @@ namespace FontShuffle
             try
             {
                 var result = groups.ToList();
-                LogManager.WriteLog($"更新されたグループを取得（{result.Count}個）");
+                _ = Task.Run(() => LogManager.WriteLog($"更新されたグループを取得（{result.Count}個）"));
                 return result;
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "更新グループ取得");
+                _ = Task.Run(() => LogManager.WriteException(ex, "更新グループ取得"));
                 return new List<FontGroup>();
             }
         }
@@ -167,12 +194,12 @@ namespace FontShuffle
     {
         public Color SelectedColor { get; set; } = Colors.White;
 
-        private readonly Slider redSlider;
-        private readonly Slider greenSlider;
-        private readonly Slider blueSlider;
-        private readonly Slider alphaSlider;
-        private readonly Rectangle colorPreview;
-        private readonly TextBox colorCodeTextBox;
+        private readonly Slider redSlider = null!;
+        private readonly Slider greenSlider = null!;
+        private readonly Slider blueSlider = null!;
+        private readonly Slider alphaSlider = null!;
+        private readonly Rectangle colorPreview = null!;
+        private readonly TextBox colorCodeTextBox = null!;
         private bool isUpdatingFromCode = false;
 
         public ColorPickerDialog()
@@ -261,7 +288,7 @@ namespace FontShuffle
                 Grid.SetColumn(colorCodeLabel, 0);
                 grid.Children.Add(colorCodeLabel);
 
-                colorCodeTextBox = new TextBox { Text = ColorToHex(SelectedColor), Width = 100 };
+                colorCodeTextBox = new TextBox { Text = ColorHelper.ColorToHex(SelectedColor), Width = 100 };
                 Grid.SetRow(colorCodeTextBox, 4);
                 Grid.SetColumn(colorCodeTextBox, 1);
                 Grid.SetColumnSpan(colorCodeTextBox, 2);
@@ -307,7 +334,7 @@ namespace FontShuffle
                     }
                     catch (Exception ex)
                     {
-                        LogManager.WriteException(ex, "赤値変更");
+                        _ = Task.Run(() => LogManager.WriteException(ex, "赤値変更"));
                     }
                 };
                 greenValue.TextChanged += (s, e) => {
@@ -318,7 +345,7 @@ namespace FontShuffle
                     }
                     catch (Exception ex)
                     {
-                        LogManager.WriteException(ex, "緑値変更");
+                        _ = Task.Run(() => LogManager.WriteException(ex, "緑値変更"));
                     }
                 };
                 blueValue.TextChanged += (s, e) => {
@@ -329,7 +356,7 @@ namespace FontShuffle
                     }
                     catch (Exception ex)
                     {
-                        LogManager.WriteException(ex, "青値変更");
+                        _ = Task.Run(() => LogManager.WriteException(ex, "青値変更"));
                     }
                 };
                 alphaValue.TextChanged += (s, e) => {
@@ -340,7 +367,7 @@ namespace FontShuffle
                     }
                     catch (Exception ex)
                     {
-                        LogManager.WriteException(ex, "透明度値変更");
+                        _ = Task.Run(() => LogManager.WriteException(ex, "透明度値変更"));
                     }
                 };
 
@@ -353,21 +380,21 @@ namespace FontShuffle
 
                 Content = grid;
                 UpdateColor(null, null);
-                LogManager.WriteLog("カラーピッカーダイアログが初期化されました");
+                _ = Task.Run(() => LogManager.WriteLog("カラーピッカーダイアログが初期化されました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "ColorPickerDialog初期化");
+                _ = Task.Run(() => LogManager.WriteException(ex, "ColorPickerDialog初期化"));
             }
         }
 
-        private void ColorCodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void ColorCodeTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
             if (isUpdatingFromCode) return;
 
             try
             {
-                if (TryParseHexColor(colorCodeTextBox.Text, out Color color))
+                if (ColorHelper.TryParseHexColor(colorCodeTextBox.Text, out Color color))
                 {
                     isUpdatingFromCode = true;
                     redSlider.Value = color.R;
@@ -379,7 +406,11 @@ namespace FontShuffle
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "カラーコードテキスト変更");
+                _ = Task.Run(() => LogManager.WriteException(ex, "カラーコードテキスト変更"));
+            }
+            finally
+            {
+                isUpdatingFromCode = false;
             }
         }
 
@@ -388,68 +419,36 @@ namespace FontShuffle
             try
             {
                 SelectedColor = Color.FromArgb(
-                    (byte)alphaSlider.Value,
-                    (byte)redSlider.Value,
-                    (byte)greenSlider.Value,
-                    (byte)blueSlider.Value
+                    (byte)Math.Round(alphaSlider.Value),
+                    (byte)Math.Round(redSlider.Value),
+                    (byte)Math.Round(greenSlider.Value),
+                    (byte)Math.Round(blueSlider.Value)
                 );
 
                 colorPreview.Fill = new SolidColorBrush(SelectedColor);
 
                 if (!isUpdatingFromCode)
                 {
-                    colorCodeTextBox.Text = ColorToHex(SelectedColor);
+                    colorCodeTextBox.Text = ColorHelper.ColorToHex(SelectedColor);
                 }
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "色更新");
-            }
-        }
-
-        private string ColorToHex(Color color)
-        {
-            return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-        }
-
-        private bool TryParseHexColor(string hex, out Color color)
-        {
-            color = Colors.White;
-
-            try
-            {
-                if (string.IsNullOrEmpty(hex))
-                    return false;
-
-                hex = hex.Trim();
-                if (hex.StartsWith("#"))
-                    hex = hex.Substring(1);
-
-                if (hex.Length != 6)
-                    return false;
-
-                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
-                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-                color = Color.FromArgb(255, r, g, b);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LogManager.WriteException(ex, "16進カラー解析");
-                return false;
+                _ = Task.Run(() => LogManager.WriteException(ex, "色更新"));
             }
         }
     }
 
     public class FontIndexProgressDialog : Window
     {
-        private readonly ProgressBar progressBar;
-        private readonly TextBlock statusText;
-        private readonly TextBlock currentFontText;
-        private readonly Button cancelButton;
+        private readonly ProgressBar progressBar = null!;
+        private readonly TextBlock statusText = null!;
+        private readonly TextBlock currentFontText = null!;
+        private readonly Button cancelButton = null!;
+        private CancellationTokenSource? cancellationTokenSource;
 
         public bool WasCanceled { get; private set; }
+        public CancellationToken CancellationToken => cancellationTokenSource?.Token ?? CancellationToken.None;
 
         public FontIndexProgressDialog()
         {
@@ -460,6 +459,8 @@ namespace FontShuffle
                 Height = 200;
                 WindowStartupLocation = WindowStartupLocation.CenterOwner;
                 ResizeMode = ResizeMode.NoResize;
+
+                cancellationTokenSource = new CancellationTokenSource();
 
                 var grid = new Grid();
                 grid.Margin = new Thickness(20);
@@ -474,7 +475,8 @@ namespace FontShuffle
                     Text = "フォントの詳細情報を解析しています...",
                     FontSize = 14,
                     FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 0, 0, 12)
+                    Margin = new Thickness(0, 0, 0, 12),
+                    TextWrapping = TextWrapping.Wrap
                 };
                 Grid.SetRow(titleText, 0);
                 grid.Children.Add(titleText);
@@ -482,7 +484,8 @@ namespace FontShuffle
                 statusText = new TextBlock
                 {
                     Text = "初期化中...",
-                    Margin = new Thickness(0, 0, 0, 8)
+                    Margin = new Thickness(0, 0, 0, 8),
+                    TextWrapping = TextWrapping.Wrap
                 };
                 Grid.SetRow(statusText, 1);
                 grid.Children.Add(statusText);
@@ -502,7 +505,8 @@ namespace FontShuffle
                     Text = "",
                     FontSize = 10,
                     Foreground = Brushes.Gray,
-                    TextTrimming = TextTrimming.CharacterEllipsis
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    TextWrapping = TextWrapping.NoWrap
                 };
                 Grid.SetRow(currentFontText, 3);
                 grid.Children.Add(currentFontText);
@@ -514,16 +518,71 @@ namespace FontShuffle
                     Height = 24,
                     HorizontalAlignment = HorizontalAlignment.Right
                 };
-                cancelButton.Click += (s, e) => { WasCanceled = true; Close(); };
+                cancelButton.Click += CancelButton_Click;
                 Grid.SetRow(cancelButton, 4);
                 grid.Children.Add(cancelButton);
 
                 Content = grid;
-                LogManager.WriteLog("フォントインデックス進行ダイアログが初期化されました");
+
+                Closing += (s, e) => {
+                    try
+                    {
+                        if (!WasCanceled && cancellationTokenSource != null && !cancellationTokenSource.Token.IsCancellationRequested)
+                        {
+                            RequestCancel();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _ = Task.Run(() => LogManager.WriteException(ex, "FontIndexProgressDialog 終了処理"));
+                    }
+                };
+
+                _ = Task.Run(() => LogManager.WriteLog("フォントインデックス進行ダイアログが初期化されました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontIndexProgressDialog初期化");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontIndexProgressDialog初期化"));
+            }
+        }
+
+        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                RequestCancel();
+            }
+            catch (Exception ex)
+            {
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontIndexProgressDialog キャンセルボタン"));
+            }
+        }
+
+        private void RequestCancel()
+        {
+            try
+            {
+                WasCanceled = true;
+                cancellationTokenSource?.Cancel();
+
+                Dispatcher.BeginInvoke(new Action(() => {
+                    try
+                    {
+                        statusText.Text = "キャンセル中...";
+                        cancelButton.IsEnabled = false;
+                        cancelButton.Content = "キャンセル中";
+                    }
+                    catch (Exception ex)
+                    {
+                        _ = Task.Run(() => LogManager.WriteException(ex, "キャンセル UI 更新"));
+                    }
+                }));
+
+                _ = Task.Run(() => LogManager.WriteLog("フォントインデックス作成のキャンセルを要求しました"));
+            }
+            catch (Exception ex)
+            {
+                _ = Task.Run(() => LogManager.WriteException(ex, "キャンセル要求処理"));
             }
         }
 
@@ -531,27 +590,77 @@ namespace FontShuffle
         {
             try
             {
-                Dispatcher.Invoke(() =>
+                if (Dispatcher.CheckAccess())
                 {
-                    if (progress.IsCompleted)
-                    {
-                        statusText.Text = "完了しました";
-                        progressBar.Value = 100;
-                        currentFontText.Text = "";
-                        cancelButton.Content = "閉じる";
-                    }
-                    else
-                    {
-                        statusText.Text = $"処理中... ({progress.Current}/{progress.Total})";
-                        double progressPercent = progress.Total > 0 ? (double)progress.Current / progress.Total * 100 : 0;
-                        progressBar.Value = progressPercent;
-                        currentFontText.Text = $"現在の処理: {progress.CurrentFont}";
-                    }
-                });
+                    UpdateProgressInternal(progress);
+                }
+                else
+                {
+                    Dispatcher.BeginInvoke(new Action(() => {
+                        try
+                        {
+                            UpdateProgressInternal(progress);
+                        }
+                        catch (Exception ex)
+                        {
+                            _ = Task.Run(() => LogManager.WriteException(ex, "フォントインデックス進行更新（Dispatcher）"));
+                        }
+                    }));
+                }
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "フォントインデックス進行更新");
+                _ = Task.Run(() => LogManager.WriteException(ex, "フォントインデックス進行更新"));
+            }
+        }
+
+        private void UpdateProgressInternal(FontIndexProgress progress)
+        {
+            try
+            {
+                if (progress.IsCompleted)
+                {
+                    statusText.Text = "完了しました";
+                    progressBar.Value = 100;
+                    currentFontText.Text = "";
+                    cancelButton.Content = "閉じる";
+                    cancelButton.IsEnabled = true;
+                }
+                else if (WasCanceled)
+                {
+                    statusText.Text = "キャンセルされました";
+                    currentFontText.Text = "";
+                    cancelButton.Content = "閉じる";
+                    cancelButton.IsEnabled = true;
+                }
+                else
+                {
+                    statusText.Text = $"処理中... ({progress.Current}/{progress.Total})";
+                    double progressPercent = progress.Total > 0 ? (double)progress.Current / progress.Total * 100 : 0;
+                    progressBar.Value = Math.Max(0, Math.Min(100, progressPercent));
+                    currentFontText.Text = $"現在の処理: {progress.CurrentFont ?? ""}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _ = Task.Run(() => LogManager.WriteException(ex, "フォントインデックス進行更新内部処理"));
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            try
+            {
+                cancellationTokenSource?.Dispose();
+                cancellationTokenSource = null;
+            }
+            catch (Exception ex)
+            {
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontIndexProgressDialog リソース解放"));
+            }
+            finally
+            {
+                base.OnClosed(e);
             }
         }
     }

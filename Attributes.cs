@@ -2,6 +2,8 @@
 using System.Windows.Data;
 using YukkuriMovieMaker.Commons;
 using YukkuriMovieMaker.Controls;
+using System;
+using System.Threading.Tasks;
 
 namespace FontShuffle
 {
@@ -12,11 +14,11 @@ namespace FontShuffle
             try
             {
                 PropertyEditorSize = PropertyEditorSize.FullWidth;
-                LogManager.WriteLog("FontShuffleControlAttributeが初期化されました");
+                _ = Task.Run(() => LogManager.WriteLog("FontShuffleControlAttributeが初期化されました"));
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontShuffleControlAttribute初期化");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontShuffleControlAttribute初期化"));
             }
         }
 
@@ -25,12 +27,12 @@ namespace FontShuffle
             try
             {
                 var control = new FontShuffleControl();
-                LogManager.WriteLog("FontShuffleControlを作成しました");
+                _ = Task.Run(() => LogManager.WriteLog("FontShuffleControlを作成しました"));
                 return control;
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontShuffleControl作成");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontShuffleControl作成"));
                 return new FontShuffleControl();
             }
         }
@@ -42,12 +44,12 @@ namespace FontShuffle
                 if (control is FontShuffleControl selector && itemProperties.Length > 0)
                 {
                     selector.Effect = itemProperties[0].PropertyOwner as FontShuffleEffect;
-                    LogManager.WriteLog("FontShuffleControlのバインディングを設定しました");
+                    _ = Task.Run(() => LogManager.WriteLog("FontShuffleControlのバインディングを設定しました"));
                 }
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontShuffleControlバインディング設定");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontShuffleControlバインディング設定"));
             }
         }
 
@@ -58,12 +60,12 @@ namespace FontShuffle
                 if (control is FontShuffleControl selector)
                 {
                     BindingOperations.ClearBinding(selector, FontShuffleControl.EffectProperty);
-                    LogManager.WriteLog("FontShuffleControlのバインディングをクリアしました");
+                    _ = Task.Run(() => LogManager.WriteLog("FontShuffleControlのバインディングをクリアしました"));
                 }
             }
             catch (Exception ex)
             {
-                LogManager.WriteException(ex, "FontShuffleControlバインディングクリア");
+                _ = Task.Run(() => LogManager.WriteException(ex, "FontShuffleControlバインディングクリア"));
             }
         }
     }
