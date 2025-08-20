@@ -7,7 +7,7 @@
 YMM4（YukkuriMovieMaker v4）で、テキストアイテムのフォントを、設定した間隔で自動的に切り替えることができるエフェクトプラグインです。
 
 > [!CAUTION]
-> v1.0.0 以前のバージョンとの設定は、互換性がありません。
+> v1.0.0 は、以前のバージョンの設定と互換性がありません。
 
 ![image](https://github.com/routersys/YMM4-ShuffleFont/blob/main/shufflefont.png)
 
